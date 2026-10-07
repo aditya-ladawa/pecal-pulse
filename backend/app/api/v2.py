@@ -48,6 +48,11 @@ def _metadata(snapshot_id: str) -> v2.ResponseMetadata:
 def _require_snapshot(snapshot_id: str) -> None:
     if snapshot_id not in data.available_snapshots():
         raise HTTPException(404, f"Unknown snapshot: {snapshot_id}")
+    from ..capabilities.data.service import runtime_source_path
+    try:
+        runtime_source_path(snapshot_id)
+    except ValueError as exc:
+        raise HTTPException(503, str(exc))
 
 
 def _recency(snapshot_id: str, customer_id: str) -> int | None:
@@ -70,6 +75,9 @@ def bootstrap(snapshot_id: str = DEFAULT_SNAPSHOT):
         by_kind[req.kind] = by_kind.get(req.kind, 0) + 1
         if req.eligibility == "eligible":
             eligible += 1
+    if snapshot.get("requirement_summary"):
+        by_kind = snapshot["requirement_summary"]["by_kind"]
+        eligible = snapshot["requirement_summary"]["eligible"]
     valid_customer_ids = {p.customer_id for p in profiles}
     open_followups = sorted(
         (f for f in data.list_followups_v2() if f.status == "open" and f.customer_id in valid_customer_ids),
@@ -183,7 +191,7 @@ def list_customers(
 def customer_detail(customer_id: str, snapshot_id: str = DEFAULT_SNAPSHOT):
     _require_snapshot(snapshot_id)
     try:
-        detail = data.get_customer_detail(snapshot_id, customer_id)
+        detail = data.get_customer_detail(snapshot_id, customer_id, full_evidence=True)
     except ValueError:
         raise HTTPException(404, f"Unknown customer: {customer_id}")
     manifest = data.get_manifest(snapshot_id)
@@ -195,6 +203,9 @@ def customer_detail(customer_id: str, snapshot_id: str = DEFAULT_SNAPSHOT):
         "history": [h.model_dump() for h in detail["history"]],
         "portfolio": [p.model_dump() for p in detail["portfolio"]],
         "requirements": [r.model_dump() for r in detail["requirements"]],
+        "requirement_tier_counts": data.load_snapshot(snapshot_id).get("requirement_summary", {}).get("by_customer", {}).get(customer_id)
+            or {kind: sum(r.kind == kind for r in detail["requirements"]) for kind in ("recorded","nominal_interval","repeat_history","unknown")},
+        "requirements_display_limit": 500 if data.load_snapshot(snapshot_id).get("runtime_compact") else None,
         "prediction": prediction.model_dump() if prediction is not None else None,
         "action": action.model_dump() if action is not None else None,
         "peer_opportunities": [
@@ -322,7 +333,7 @@ def update_workflow(
 ):
     _require_snapshot(snapshot_id)
     try:
-        detail = data.get_customer_detail(snapshot_id, customer_id)
+        detail = data.get_customer_detail(snapshot_id, customer_id, full_evidence=True)
     except ValueError:
         raise HTTPException(404, f"Unknown customer: {customer_id}")
     known = _known_reason_ids(snapshot_id, customer_id, detail)
@@ -356,14 +367,16 @@ def update_workflow(
 
 @router.get("/opportunities")
 def opportunities(snapshot_id: str = DEFAULT_SNAPSHOT, industry: str = "all", segment: str = "all", group: str = "all",
-    purpose: Literal["all", "upcoming", "inactivity", "discovery"] = "all", window_days: Literal[30,60,90] = 90,
+    purpose: Literal["all", "upcoming", "inactivity", "discovery"] = "all", window_days: int = Query(default=90, ge=30, le=90),
     include_inferred: bool = True, include_past_due: bool = False, cluster_id: str | None = None,
-    display_limit: int = Query(default=500, ge=0, le=10000), limit: int = Query(default=10, ge=1, le=100),
+    display_limit: int = Query(default=200, ge=0, le=1000), limit: int = Query(default=10, ge=1, le=100),
     offset: int = Query(default=0, ge=0), unit_contribution: float | None = Query(default=None, ge=0, le=100000),
     assumption_source: str = Query(default="", max_length=150)):
     from ..contracts.opportunities import OpportunityFilters, ScenarioAssumptions
     from ..capabilities.data.opportunities import compose
     _require_snapshot(snapshot_id)
+    if window_days not in (30,60,90):
+        raise HTTPException(422, "window_days must be 30, 60 or 90")
     if unit_contribution is not None and not assumption_source.strip():
         raise HTTPException(422, "Supply the source of your contribution assumption")
     scenario = ScenarioAssumptions(unit_contribution=unit_contribution, source=assumption_source.strip()) if unit_contribution is not None else None

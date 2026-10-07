@@ -37,7 +37,7 @@ def snapshot_stats(snapshot_id: str) -> _insights.SnapshotStats:
     snapshot = load_snapshot(snapshot_id)
     if "_ranking_stats" in snapshot:
         return snapshot["_ranking_stats"]
-    instruments_per_account: dict[str, int] = {}
+    instruments_per_account: dict[str, int] = dict(snapshot.get("ranking_instrument_counts", {}))
     for inst in snapshot["instruments"]:
         if inst.current_customer_id:
             instruments_per_account[inst.current_customer_id] = (

@@ -7,6 +7,7 @@ from pathlib import Path
 from . import service, composition, workflow
 from ..analytics.context import for_snapshot
 from ..analytics import opportunities as features
+from ..insights import service as insights, compat
 from ...contracts import sales_v2 as v2
 from ...contracts.opportunities import (OpportunityFilters, OpportunityPoint, ClusterSummary,
     CohortMetric, OpportunityResponse, ScenarioAssumptions)
@@ -22,7 +23,7 @@ def _base(snapshot_id, filters, allow_fit=False):
     reference = snapshot['manifest'].reference_date
     end_month = snapshot['manifest'].complete_through_month
     end_index = int(end_month[:4]) * 12 + int(end_month[5:])
-    volumes, groups, reqs = {}, {}, {}
+    volumes, groups, reqs = {}, {cid:set(values) for cid,values in snapshot.get("customer_group_ids", {}).items()}, {}
     for h in snapshot['history']:
         index = int(h.month[:4]) * 12 + int(h.month[5:])
         if end_index - 11 <= index <= end_index:
@@ -44,7 +45,7 @@ def _base(snapshot_id, filters, allow_fit=False):
                                              filters.include_inferred, filters.include_past_due)
         raw = features.raw_components(supported, prediction, volumes.get(cid), bool(peers), reference)
         rows.append({'profile': profile, 'prediction': prediction, 'requirements': supported,
-                     'history_volume': volumes.get(cid), 'discovery': bool(peers), 'raw': raw,
+                     'history_volume': volumes.get(cid), 'discovery': bool(peers), 'peers': peers, 'raw': raw,
                      'groups': sorted(groups.get(cid, set()) | {p.group_id for p in peers}),
                      'segment_label': segments.get(prediction.segment_id) if prediction else None})
     signature = hashlib.sha256(json.dumps([features.RULE_VERSION, snapshot_id, reference,
@@ -70,7 +71,7 @@ def _base(snapshot_id, filters, allow_fit=False):
 
 
 def compose(snapshot_id: str, metadata: v2.ResponseMetadata, filters: OpportunityFilters,
-            cluster_id: str | None = None, display_limit=500, limit=10, offset=0,
+            cluster_id: str | None = None, display_limit=200, limit=10, offset=0,
             scenario: ScenarioAssumptions | None = None) -> OpportunityResponse:
     if cluster_id is not None and cluster_id not in {*features.IDS, 'needs-evidence'}:
         raise ValueError('Unknown opportunity cluster')
@@ -89,9 +90,8 @@ def compose(snapshot_id: str, metadata: v2.ResponseMetadata, filters: Opportunit
         if value != 'all' and value not in {o['value'] for o in options[key]}:
             raise ValueError(f'Unknown {key} filter')
     rows, model, signature = _base(snapshot_id, filters)
-    actions = {a.customer_id: a for a in composition.ranked_queue(snapshot_id, metadata.workflow_today)}
-    # Queue reads initialize the DB; read workflow state afterwards.
     states = workflow.list_workflows()
+    stats = composition.snapshot_stats(snapshot_id)
     matched = []
     for row in rows:
         p, pred = row['profile'], row['prediction']
@@ -106,7 +106,12 @@ def compose(snapshot_id: str, metadata: v2.ResponseMetadata, filters: Opportunit
         suppressed = composition._suppressed_ids(state, metadata.workflow_today)
         reqs = features.due_requirements(row['requirements'], metadata.reference_date,
                     filters.window_days, filters.include_inferred, filters.include_past_due, suppressed)
-        action = actions.get(cid)
+        local_action = insights.build_account_action(snapshot_id=snapshot_id, customer_id=cid,
+            requirements=[compat.requirement_from_shared(r) for r in reqs],
+            prediction=compat.prediction_from_shared(pred) if pred else None,
+            peer_opportunities=compat.peers_from_shared(row['peers']),
+            workflow=compat.workflow_from_shared(state), stats=stats, today=metadata.workflow_today)
+        action = v2.AccountAction.model_validate(compat.action_to_shared_payload(local_action)) if local_action else None
         reason_types = list(dict.fromkeys(r.type for r in action.reasons)) if action else []
         prediction = pred
         if pred and f'{cid}:inactivity:review' in suppressed:
@@ -164,13 +169,13 @@ def compose(snapshot_id: str, metadata: v2.ResponseMetadata, filters: Opportunit
     # Round-robin stable sample across matching groups: selection must not hide other groups.
     buckets = [[p for p in matched if p.cluster_id == cid] for cid in features.IDS]
     sampled, index = [], 0
-    target = len(matched) if display_limit == 0 else display_limit
+    target = min(1000, len(matched)) if display_limit == 0 else min(1000, display_limit)
     while len(sampled) < target and any(index < len(b) for b in buckets):
         for bucket in buckets:
             if index < len(bucket) and len(sampled) < target:
                 sampled.append(bucket[index])
         index += 1
-    summaries = [ClusterSummary(id=cid, label=features.LABELS[i], color=features.COLORS[i], urgency=model['centers'][i][0],
+    summaries = [ClusterSummary(id=cid, label=('Prioritize next' if i == 1 and model['centers'][i][0] >= 60 else features.LABELS[i]), color=features.COLORS[i], urgency=model['centers'][i][0],
                 size=model['centers'][i][1], matching_count=sum(p.cluster_id == cid for p in matched)) for i, cid in enumerate(features.IDS)]
     scenario_result = None
     if scenario:

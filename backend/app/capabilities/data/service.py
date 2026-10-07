@@ -13,6 +13,9 @@ data/runtime/snapshots/<snapshot_id>.json (gitignored, never committed).
 
 import json
 import re
+import sqlite3
+from contextlib import closing
+from threading import RLock
 from functools import lru_cache
 from pathlib import Path
 
@@ -73,10 +76,21 @@ def _snapshot_path(snapshot_id: str) -> Path:
     raise ValueError(f"Unknown snapshot: {snapshot_id}")
 
 
-@lru_cache(maxsize=8)
-def load_snapshot(snapshot_id: str) -> dict:
+def runtime_source_path(snapshot_id: str) -> Path:
+    source = _snapshot_path(snapshot_id)
+    compact = source.with_name(source.stem + ".compact.json")
+    if compact.is_file():
+        return compact
+    if source.stat().st_size > 100 * 1024 * 1024:
+        raise ValueError("Large source needs a compact runtime snapshot. Run python -m analysis.build_runtime_snapshot --snapshot-id " + snapshot_id)
+    return source
+
+
+@lru_cache(maxsize=2)
+def _load_snapshot(snapshot_id: str) -> dict:
     """Load and contract-validate one immutable snapshot document."""
-    raw = json.loads(_snapshot_path(snapshot_id).read_text())
+    source = runtime_source_path(snapshot_id)
+    raw = json.loads(source.read_text())
     manifest = v2.SnapshotManifest.model_validate(raw["manifest"])
     if manifest.snapshot_id != snapshot_id:
         raise ValueError("snapshot_id mismatch inside snapshot document")
@@ -88,7 +102,19 @@ def load_snapshot(snapshot_id: str) -> dict:
     validated["month_grid"] = list(raw.get("month_grid", []))
     validated["industry_labels"] = list(raw.get("industry_labels", []))
     validated["equipment_group_labels"] = list(raw.get("equipment_group_labels", []))
+    for key in ("runtime_compact", "ranking_instrument_counts", "customer_group_ids", "requirement_summary"):
+        if key in raw:
+            validated[key] = raw[key]
     return validated
+
+
+_snapshot_lock = RLock()
+def load_snapshot(snapshot_id: str) -> dict:
+    # Serialize cold reads so bootstrap/chat/map cannot parse the large source twice.
+    with _snapshot_lock:
+        return _load_snapshot(snapshot_id)
+load_snapshot.cache_clear = _load_snapshot.cache_clear
+load_snapshot.cache_info = _load_snapshot.cache_info
 
 
 def get_manifest(snapshot_id: str) -> v2.SnapshotManifest:
@@ -99,7 +125,7 @@ def list_customers(snapshot_id: str) -> list[v2.CustomerProfile]:
     return load_snapshot(snapshot_id)["profiles"]
 
 
-def get_customer_detail(snapshot_id: str, customer_id: str) -> dict:
+def get_customer_detail(snapshot_id: str, customer_id: str, full_evidence: bool = False) -> dict:
     """Profile + history + portfolio + instruments + events + requirements."""
     snapshot = load_snapshot(snapshot_id)
     if "_customer_index" not in snapshot:
@@ -114,6 +140,16 @@ def get_customer_detail(snapshot_id: str, customer_id: str) -> dict:
     detail = snapshot["_customer_index"].get(customer_id)
     if detail is None:
         raise ValueError(f"Unknown customer: {customer_id}")
+    if full_evidence and snapshot.get("runtime_compact"):
+        path = _snapshot_path(snapshot_id).with_name(snapshot_id + ".requirements.sqlite3")
+        with closing(sqlite3.connect(path)) as db:
+            # Bounded page: retain actionable evidence before other historical rows.
+            active = detail["requirements"][:500]
+            seen = {r.id for r in active}
+            extra = [v2.Requirement.model_validate_json(row[0]) for row in db.execute(
+                "SELECT payload FROM requirements WHERE customer_id=? LIMIT 500", (customer_id,))]
+        requirements = (active + [r for r in extra if r.id not in seen])[:500]
+        return {**detail, "requirements": requirements}
     return detail
 
 
