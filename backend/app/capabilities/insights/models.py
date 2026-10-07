@@ -36,16 +36,17 @@ class CustomerProfile(StrictModel):
 class PortfolioRow(StrictModel):
     """One observed calibrated category per account.
 
-    One row per (customer, group): ``distinct_instruments`` counts distinct
-    instruments observed in calibration history for that category, NOT the
-    number of calibration rows. A row exists only when the account owns at
-    least one observed instrument in the category.
+    One row per (customer, group) with distinct-instrument counts where
+    exported. ``distinct_instruments=None`` means the export counts
+    calibration rows per group and has no distinct-instrument measure —
+    never zero observed (mirrors the shared contract). A row exists only
+    when the account calibrated that category in the window.
     """
 
     customer_id: str
     group_id: str
     group_label: str
-    distinct_instruments: int = Field(ge=0)
+    distinct_instruments: int | None = Field(default=None, ge=0)
     calibration_events: int = Field(ge=0)
     window_start: str
     window_end: str

@@ -25,17 +25,31 @@ def normalize_industry(value: str | None) -> str:
     return (value or "").strip().lower()
 
 
+def owns_category(row: PortfolioRow) -> bool:
+    """Account-level ownership test for one portfolio row.
+
+    Uses distinct instruments where exported; when the export counts only
+    calibration rows (``distinct_instruments=None``), any positive
+    calibration count implies at least one observed instrument. An
+    explicit ``distinct_instruments=0`` always means not owned, even if
+    row counts disagree. Row counts never inflate the peer denominator —
+    each account votes at most once per category.
+    """
+    if row.distinct_instruments is not None:
+        return row.distinct_instruments > 0
+    return row.calibration_events > 0
+
+
 def build_peer_index(
     portfolios: list[PortfolioRow],
+    industry_by_customer: dict[str, str],
 ) -> dict[str, dict[str, set[str]]]:
     """Map industry_id -> group_id -> set(customer_id).
 
-    Input rows must already be account-level (one row per customer/group
-    with distinct-instrument counts). Rows with ``distinct_instruments <= 0``
-    are ignored so row counts can never inflate the denominator.
+    The industry mapping is required: ``PortfolioRow`` carries no industry
+    and unmapped rows must never silently join a peer set.
     """
-    index: dict[str, dict[str, set[str]]] = {}
-    return add_to_peer_index(index, portfolios)
+    return add_to_peer_index({}, portfolios, industry_by_customer)
 
 
 def add_to_peer_index(
@@ -50,7 +64,7 @@ def add_to_peer_index(
     industry mapping are skipped — they must not silently join a peer set.
     """
     for row in portfolios:
-        if row.distinct_instruments <= 0:
+        if not owns_category(row):
             continue
         industry_id = None
         if industry_by_customer is not None:

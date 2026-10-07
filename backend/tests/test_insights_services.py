@@ -73,7 +73,7 @@ class PeerDiscoveryTests(unittest.TestCase):
     def test_target_account_excluded_from_peers(self):
         # C-AUTO-002 owns TORQUE; with lowered thresholds it must NOT be
         # offered its own category back as a discovery.
-        index = build_peer_index(_portfolios())
+        index = build_peer_index(_portfolios(), _industry_map())
         industry_by_customer = _industry_map()
         # rebuild with industry mapping (PortfolioRow carries no industry)
         from backend.app.capabilities.insights.peers import add_to_peer_index
