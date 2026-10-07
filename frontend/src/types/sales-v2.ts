@@ -142,6 +142,13 @@ export interface Detail {
       recency_to_cadence: number | null;
     };
   } | null;
+  forecast_quality?: {
+    input_months: number | null;
+    test_windows: number | null;
+    test_customers: number | null;
+    wape: number | null;
+    mae: number | null;
+  } | null;
   action: Action | null;
   peer_opportunities: {
     group_label: string;
