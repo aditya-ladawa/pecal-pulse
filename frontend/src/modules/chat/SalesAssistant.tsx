@@ -30,6 +30,7 @@ import { streamChat, getChatStatus, getChatHistory } from "@/modules/sales/api";
 import { dispatchEvent } from "@/core/events/router";
 import { ArtifactChart } from "@/modules/artifacts/Chart";
 import { ChatParts } from "./ChatParts";
+import { integratedSnapshot } from "@/modules/sales/IntegratedWorkspace";
 import { dashboardSnapshot } from "@/modules/sales/page-context";
 import type { Page, WorkspaceContext, ChatMessage } from "@/types/sales";
 const starters = [
@@ -133,23 +134,35 @@ export function SalesAssistantProvider({ children }: { children: ReactNode }) {
         const visible = filterCustomers(s.data, s.filters);
         const context: WorkspaceContext = {
           page,
-          page_snapshot:
-            page === "dashboard" ? dashboardSnapshot(s.data) : undefined,
-          customer_id:
-            page === "customers"
+          page_snapshot: s.v2
+            ? integratedSnapshot(s.v2, s.v2Detail, page)
+            : page === "dashboard"
+              ? dashboardSnapshot(s.data)
+              : undefined,
+          snapshot_id: s.v2?.metadata.snapshot_id,
+          customer_id: s.v2
+            ? s.selectedId || null
+            : page === "customers"
               ? ((visible.find((c) => c.id === s.selectedId) || visible[0])
                   ?.id ?? null)
               : s.selectedId,
           filters: s.filters,
-          reference_date: s.data.reference_date,
-          visible_customer_ids: (page === "customers"
-            ? visible
-            : page === "dashboard"
-              ? [...s.data.customers]
-                  .sort((a, b) => b.priority - a.priority)
-                  .slice(0, s.actionLimit)
-              : []
-          ).map((c) => c.id),
+          reference_date:
+            s.v2?.metadata.reference_date || s.data.reference_date,
+          visible_customer_ids: s.v2
+            ? page === "customers"
+              ? s.v2List?.items.map((c) => c.profile.customer_id) || []
+              : page === "dashboard"
+                ? s.v2.actions.slice(0, s.actionLimit).map((a) => a.customer_id)
+                : []
+            : (page === "customers"
+                ? visible
+                : page === "dashboard"
+                  ? [...s.data.customers]
+                      .sort((a, b) => b.priority - a.priority)
+                      .slice(0, s.actionLimit)
+                  : []
+              ).map((c) => c.id),
           action_limit: s.actionLimit,
           customer_tab: s.customerTab,
           artifact_ids: s.artifacts.slice(-50).map((a) => a.id),
@@ -276,7 +289,10 @@ function AssistantMessage() {
             <strong>{a.title}</strong>
           </div>
           <ArtifactChart artifact={a} compact />
-          <small>Synthetic {a.unit} · also on Dashboard</small>
+          <small>
+            {a.source === "historical" ? "Historical observed" : "Synthetic"}{" "}
+            {a.unit} · also on Dashboard
+          </small>
         </div>
       ))}
       <ActionBarPrimitive.Root className="message-actions">
@@ -358,7 +374,7 @@ export function SalesAssistant() {
         {chatLoading
           ? "Restoring conversation…"
           : chatStatus?.configured
-            ? "AI assistant · synthetic workspace data"
+            ? `AI assistant · ${chatStatus.data_mode} workspace data`
             : "Assistant unavailable · check backend configuration"}
       </div>
       <ThreadPrimitive.Root className="chat-thread">
@@ -388,7 +404,7 @@ export function SalesAssistant() {
                 ))}
               </div>
               <small>
-                Synthetic demo data. Ask Pulse to explain this page, change
+                Ask Pulse to explain this page using its source evidence, change
                 filters, open an account or create a chart.
               </small>
             </div>
@@ -429,7 +445,7 @@ export function SalesAssistant() {
               <button
                 disabled
                 className="icon-button"
-                aria-label="Voice input unavailable in mock"
+                aria-label="Voice input unavailable"
                 title="Voice will be connected later"
               >
                 <Mic size={18} />
@@ -454,7 +470,7 @@ export function SalesAssistant() {
             </div>
           </ComposerPrimitive.Root>
           <div className="composer-note">
-            AI suggestions need your review · synthetic data.
+            AI suggestions need your review · check source evidence.
           </div>
         </div>
       </ThreadPrimitive.Root>

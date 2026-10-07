@@ -21,7 +21,7 @@ export function dispatchEvent(event: EventEnvelope) {
       });
       break;
     case "customers.select":
-      if (s.data.customers.some((c) => c.id === event.payload.customer_id))
+      if (s.v2 || s.data.customers.some((c) => c.id === event.payload.customer_id))
         s.set({ selectedId: event.payload.customer_id });
       break;
     case "artifact.created":

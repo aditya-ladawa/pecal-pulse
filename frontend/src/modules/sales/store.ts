@@ -10,7 +10,13 @@ import type {
   CustomerTab,
   ChatStatus,
 } from "@/types/sales";
+import type { Bootstrap, CustomerList, Detail } from "@/types/sales-v2";
 interface SalesState {
+  v2: Bootstrap | null;
+  v2List: CustomerList | null;
+  v2Detail: Detail | null;
+  v2Error: string;
+  v2Loading: boolean;
   data: Workspace;
   filters: CustomerFilters;
   selectedId: string;
@@ -36,6 +42,11 @@ export const defaultFilters: CustomerFilters = {
   query: "",
 };
 export const useSalesStore = create<SalesState>((set) => ({
+  v2: null,
+  v2List: null,
+  v2Detail: null,
+  v2Error: "",
+  v2Loading: true,
   data: fixture as Workspace,
   filters: defaultFilters,
   selectedId: "DEMO-1001",
