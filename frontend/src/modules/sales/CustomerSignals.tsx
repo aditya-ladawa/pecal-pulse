@@ -32,6 +32,22 @@ export function BatchReasonSummary({
   const past = r.title.includes("past due");
   const estimated = r.unknowns.some((u) => u.includes("inferred"));
   const upcoming = r.type === "upcoming";
+  const groupId = r.id.split(":").slice(-3)[0];
+  const pastWork = upcoming
+    ? detail.portfolio.find((p) => p.group_id === groupId)
+    : undefined;
+  const historyPeriod = pastWork
+    ? [
+        ...new Set(
+          [pastWork.window_start, pastWork.window_end].map((date) =>
+            new Date(date.slice(0, 7) + "-01T12:00:00Z").toLocaleDateString(
+              undefined,
+              { month: "short", year: "numeric" },
+            ),
+          ),
+        ),
+      ].join(" – ")
+    : "";
   return (
     <div className="batch-summary">
       {upcoming && (
@@ -64,9 +80,18 @@ export function BatchReasonSummary({
               : "Review opportunity"}
           </span>
           {upcoming && (
-            <small>{estimated ? "Estimated timing" : "Date on file"}</small>
+            <small>
+              {estimated ? "Estimated due window" : "Recorded due date"}
+            </small>
           )}
         </div>
+        {pastWork && (
+          <small className="batch-past-work">
+            Previous work in this category:{" "}
+            {pastWork.calibration_events.toLocaleString()} calibrations ·{" "}
+            {historyPeriod}
+          </small>
+        )}
       </div>
       <InfoHint
         label={`evidence for ${upcoming ? equipmentLabel(detail, r) + " " + timing : r.title}`}
@@ -75,7 +100,9 @@ export function BatchReasonSummary({
         {r.unknowns.length > 0 && <p>To confirm: {r.unknowns.join("; ")}</p>}
         <small>
           History reference: {detail.metadata.reference_date}. A passed date
-          does not confirm outstanding work.
+          does not confirm outstanding work. Previous category work includes all
+          observed calibrations in that category, not only the instruments in
+          this batch.
         </small>
       </InfoHint>
     </div>
