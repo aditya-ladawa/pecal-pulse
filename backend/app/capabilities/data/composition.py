@@ -3,14 +3,15 @@
 `refresh_after_correction` re-derives an account's actionable state after a
 workflow write: stored requirements minus signal-scoped suppressions, plus
 the persisted workflow. Ranking/peer/preparation math is Member 3's pure
-insight layer, composed here — never reimplemented. Predictions stay `None`
-until Member 2 merges; missing insight outputs stay null, never mocked.
+insight layer, composed here — never reimplemented. Member 2's published
+predictions are read for this snapshot; unavailable outputs stay null.
 """
 
 import calendar
 import os
 from collections.abc import Callable
 
+from ..analytics.context import for_snapshot as _analytics_for_snapshot
 from ..insights import compat as _compat
 from ..insights import service as _insights
 from ..insights.peers import owns_category as _owns_category
@@ -128,6 +129,7 @@ def _local_inputs(snapshot_id: str, customer_id: str, today: str) -> dict:
     detail = get_customer_detail(snapshot_id, customer_id)
     state = get_workflow(customer_id)
     suppressed = _suppressed_ids(state, today)
+    prediction = _analytics_for_snapshot(load_snapshot(snapshot_id)).prediction(customer_id)
     return {
         "profile": _compat.profile_from_shared(detail["profile"]),
         "requirements": [
@@ -135,7 +137,7 @@ def _local_inputs(snapshot_id: str, customer_id: str, today: str) -> dict:
             for r in detail["requirements"]
             if r.id not in suppressed
         ],
-        "prediction": None,
+        "prediction": _compat.prediction_from_shared(prediction) if prediction is not None else None,
         "peers": _compat.peers_from_shared(peers_for_customer(snapshot_id, customer_id)),
         "workflow": _compat.workflow_from_shared(state),
         "suppressed": suppressed,
@@ -153,7 +155,7 @@ def action_for_customer(
         snapshot_id=snapshot_id,
         customer_id=customer_id,
         requirements=local["requirements"],
-        prediction=None,
+        prediction=local["prediction"],
         peer_opportunities=local["peers"],
         workflow=local["workflow"],
         stats=stats,
@@ -174,7 +176,7 @@ def preparation_for_customer(
         snapshot_id=snapshot_id,
         customer_id=customer_id,
         requirements=local["requirements"],
-        prediction=None,
+        prediction=local["prediction"],
         peer_opportunities=local["peers"],
         workflow=local["workflow"],
         stats=stats,
@@ -184,7 +186,7 @@ def preparation_for_customer(
         profile=local["profile"],
         action=action,
         peer_opportunities=local["peers"],
-        prediction=None,
+        prediction=local["prediction"],
         requirements=local["requirements"],
         workflow=local["workflow"],
         reference_date=stats.reference_date,
@@ -202,7 +204,7 @@ def ranked_queue(
     for profile in list_customers(snapshot_id):
         local = _local_inputs(snapshot_id, profile.customer_id, today)
         action = ranking_fn(
-            profile, local["requirements"], None, local["peers"], local["workflow_shared"]
+            profile, local["requirements"], local["prediction"], local["peers"], local["workflow_shared"]
         )
         if action is not None:
             actions.append(
@@ -225,7 +227,7 @@ def split_queue(
             snapshot_id=snapshot_id,
             customer_id=profile.customer_id,
             requirements=local["requirements"],
-            prediction=None,
+            prediction=local["prediction"],
             peer_opportunities=local["peers"],
             workflow=local["workflow"],
             stats=stats,
@@ -257,7 +259,8 @@ def refresh_after_correction(
         ranking_fn = _compat.ranking_fn_for_composition(
             snapshot_stats(snapshot_id), today=today
         )
-    local_action = ranking_fn(detail["profile"], active, None, [], state)
+    local = _local_inputs(snapshot_id, customer_id, today)
+    local_action = ranking_fn(detail["profile"], active, local["prediction"], local["peers"], state)
     action = (
         v2.AccountAction.model_validate(_compat.action_to_shared_payload(local_action))
         if local_action is not None

@@ -18,7 +18,8 @@ class V2ApiTests(unittest.TestCase):
     def setUpClass(cls):
         cls.tmp = TemporaryDirectory()
         cls.env = patch.dict(
-            os.environ, {"PECAL_DEMO_DB": str(Path(cls.tmp.name) / "api.sqlite3")}
+            os.environ, {"PECAL_DEMO_DB": str(Path(cls.tmp.name) / "api.sqlite3"),
+                         "PECAL_ANALYTICS_ROOT": str(Path(cls.tmp.name) / "analytics")}
         )
         cls.env.start()
         cls.client = TestClient(app)
