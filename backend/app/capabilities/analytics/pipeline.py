@@ -11,7 +11,7 @@ from platform import python_version
 import numpy as np
 import sklearn
 from sklearn.cluster import KMeans
-from sklearn.ensemble import HistGradientBoostingClassifier, HistGradientBoostingRegressor
+from sklearn.ensemble import ExtraTreesRegressor, HistGradientBoostingClassifier, HistGradientBoostingRegressor
 from sklearn.isotonic import IsotonicRegression
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (adjusted_rand_score, average_precision_score,
@@ -26,7 +26,7 @@ from .features import (FEATURE_NAMES, feature_row, inactivity_evidence, index_hi
 from .sectors import build_sectors
 from .snapshot import normalize_snapshot
 
-VERSION = "analytics-v2"
+VERSION = "analytics-v3"
 SEED = 42
 
 
@@ -220,8 +220,14 @@ def build_outputs(snapshot: dict) -> dict:
     if volume_supported:
         x_val, _, v_val = arrays("validation")
         x_test, _, v_test = arrays("test")
-        volume_models = {"boosted_poisson": HistGradientBoostingRegressor(loss="poisson", max_leaf_nodes=15,
-            max_iter=200, l2_regularization=20, early_stopping=False, random_state=SEED)} if v_train.sum() > 0 else {}
+        volume_models = {
+            "boosted_poisson": HistGradientBoostingRegressor(loss="poisson", max_leaf_nodes=15,
+                max_iter=200, l2_regularization=20, early_stopping=False, random_state=SEED),
+            "boosted_squared": HistGradientBoostingRegressor(loss="squared_error", max_leaf_nodes=15,
+                max_iter=140, learning_rate=.05, l2_regularization=20, early_stopping=False, random_state=SEED),
+            "extra_trees": ExtraTreesRegressor(n_estimators=80, max_depth=12, min_samples_leaf=30,
+                n_jobs=1, random_state=SEED),
+        } if v_train.sum() > 0 else {}
         for name, model in volume_models.items():
             model.fit(x_train, v_train)
             volume_eval[name] = {"validation": _volume_metrics(v_val, np.maximum(0, model.predict(x_val))),
