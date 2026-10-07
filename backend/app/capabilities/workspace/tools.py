@@ -35,7 +35,7 @@ def get_workspace_context(runtime: ToolRuntime[TurnContext]) -> dict:
                     "industry": [{"value": i, "label": label} for i, label in sorted({(p.industry_id or "unknown", p.industry_label or "Unknown") for p in profiles})],
                     "segment": [{"value": s["id"], "label": s["label"]} for s in segments],
                     "action": ["all", "upcoming", "inactivity", "discovery"],
-                    "customer_tab": ["activity", "portfolio", "next-step"], "action_limit": [5,10,12]},
+                    "customer_tab": ["activity", "portfolio", "next-step"], "customer_activity_view": ["monthly", "quarter"], "action_limit": [5,10,12]},
                 "followups": api_v2.list_followups(sid)["items"] if workspace["page"] == "follow-ups" else [],
                 "chart_views": ["industry", "activity", "portfolio", "sector_activity", "sector_outlook", "sector_correlation"],
                 "opportunities": _opportunity_summary(runtime) if workspace["page"] == "dashboard" else None,
@@ -45,7 +45,7 @@ def get_workspace_context(runtime: ToolRuntime[TurnContext]) -> dict:
                          "industry": ["all", *service.FIXTURE["sector_labels"]],
                          "segment": ["all", "Frequent", "Intermittent", "Occasional"],
                          "action": ["all", "upcoming", "inactivity", "discovery"],
-                         "customer_tab": ["activity", "portfolio", "next-step"],
+                         "customer_tab": ["activity", "portfolio", "next-step"], "customer_activity_view": ["monthly", "quarter"],
                          "action_limit": [5, 10, 12]},
             "followups": service.list_followups() if workspace["page"] == "follow-ups" else [],
             "chart_views": ["industry", "activity", "portfolio"]}
@@ -74,7 +74,9 @@ def get_customer_evidence(runtime: ToolRuntime[TurnContext], customer_id: str = 
     """Read selected or specified customer history, forecast, reasons and observed portfolio from the active snapshot."""
     runtime.context.consume()
     if runtime.context.workspace.snapshot_id:
-        detail = api_v2.customer_detail(customer_id or runtime.context.workspace.customer_id, runtime.context.workspace.snapshot_id)
+        scope = runtime.context.workspace.opportunity_filters if runtime.context.workspace.page == "dashboard" else None
+        params = {"window_days": scope.window_days, "include_past_due": scope.include_past_due, "include_inferred": scope.include_inferred} if scope else {}
+        detail = api_v2.customer_detail(customer_id or runtime.context.workspace.customer_id, runtime.context.workspace.snapshot_id, **params)
         detail["requirement_count"] = sum(detail["requirement_tier_counts"].values())
         detail["requirement_tier_counts"] = detail["requirement_tier_counts"]
         detail["requirements"] = detail["requirements"][:50]
@@ -137,11 +139,15 @@ def select_customer(customer_id: str, runtime: ToolRuntime[TurnContext]) -> dict
     return emit(runtime, "ui.navigate", {"page": "customers"})
 
 @tool
-def set_customer_tab(tab: Literal["activity", "portfolio", "next-step"], runtime: ToolRuntime[TurnContext]) -> dict:
-    """Switch the selected customer's activity, portfolio or next-step detail tab."""
+def set_customer_tab(tab: Literal["activity", "portfolio", "next-step"], runtime: ToolRuntime[TurnContext], activity_view: Literal["monthly", "quarter"] | None = None) -> dict:
+    """Switch the customer detail tab; optionally show 24 months (monthly) or 3 months (quarter) of historical bars, followed by a shaded three-month forecast window."""
     runtime.context.consume()
     runtime.context.workspace.customer_tab = tab
-    return emit(runtime, "ui.control.set", {"control": "customers.tab", "value": tab})
+    payload = {"control": "customers.tab", "value": tab}
+    if activity_view is not None:
+        runtime.context.workspace.customer_activity_view = activity_view
+        payload["activity_view"] = activity_view
+    return emit(runtime, "ui.control.set", payload)
 
 @tool
 def set_action_limit(limit: Literal[5, 10, 12], runtime: ToolRuntime[TurnContext]) -> dict:

@@ -2892,6 +2892,78 @@ details[open] > summary > .disclosure-chevron {
 .opportunity-drawer .metrics {
   margin-bottom: 16px;
 }
+.info-hint {
+  display: inline-block;
+  position: relative;
+  margin-left: 6px;
+  vertical-align: middle;
+  font-size: 13px;
+  font-weight: 400;
+}
+.info-hint summary {
+  display: inline-flex;
+  cursor: pointer;
+  color: #71856a;
+  padding: 4px;
+  border-radius: 50%;
+  list-style: none;
+}
+.info-hint summary::-webkit-details-marker {
+  display: none;
+}
+.info-hint summary:focus-visible {
+  outline: 2px solid #71856a;
+  outline-offset: 2px;
+}
+.info-hint[open] summary {
+  background: #e5eddd;
+}
+.info-hint > div {
+  position: absolute;
+  z-index: 100;
+  top: 32px;
+  right: 0;
+  width: min(300px, 75vw);
+  padding: 14px 16px;
+  border: 1px solid #dce5d4;
+  border-radius: 14px;
+  background: white;
+  color: #40523a;
+  box-shadow: 0 8px 32px #243d2420;
+  line-height: 1.6;
+  text-align: left;
+  white-space: normal;
+}
+.opportunity-map .card-heading > div:first-child,
+.customer-signals .card-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.opportunity-heading {
+  margin-bottom: 18px;
+}
+.sales-signal {
+  background: #edf2e8;
+  padding: 14px 16px;
+  border-radius: 16px;
+  margin: 12px 0;
+}
+.sales-signal.orange {
+  background: #fcf0e5;
+}
+.sales-signal p,
+.sales-signal ul {
+  margin: 6px 0;
+}
+.customer-signals .integrated-table {
+  max-height: none;
+}
+.opportunity-drawer details:not(.info-hint) summary {
+  cursor: pointer;
+  color: #586e4b;
+  padding: 8px 0;
+}
 @media (max-width: 1000px) {
   .opportunity-filters {
     grid-template-columns: repeat(3, minmax(0, 1fr));

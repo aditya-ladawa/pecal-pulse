@@ -1,11 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
 import type { EChartsOption } from "echarts";
-import { ArrowUpRight, Download, Save, Sparkles, X } from "lucide-react";
-import { Card } from "@/components/ui/Primitives";
+import { ArrowUpRight, Download, Save, X } from "lucide-react";
+import { Card, InfoHint } from "@/components/ui/Primitives";
 import { Chart, ArtifactChart } from "@/modules/artifacts/Chart";
 import { useSalesStore } from "./store";
 import { request, getV2Detail, getV2Followups, patchV2Workflow } from "./api";
+import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 import { CustomerEvidence } from "./IntegratedWorkspace";
 import { mapPosition, opportunityRegions } from "./opportunity-regions";
 import type {
@@ -45,10 +46,12 @@ export function OpportunityDashboard() {
     [error, setError] = useState("");
   const [offset, setOffset] = useState(0),
     [detail, setDetail] = useState<Detail | null>(null);
-  const [saving, setSaving] = useState(false),
-    [scenarioOpen, setScenarioOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [savedLists, setSavedLists] = useState<SavedList[]>([]);
   const data = s.opportunities;
+  useEffect(() => {
+    s.set({ commercialScenario: null });
+  }, [s.set]);
   useEffect(() => {
     try {
       setSavedLists(JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"));
@@ -74,13 +77,6 @@ export function OpportunityDashboard() {
       offset: String(offset),
     });
     if (s.opportunityCluster) params.set("cluster_id", s.opportunityCluster);
-    if (s.commercialScenario) {
-      params.set(
-        "unit_contribution",
-        String(s.commercialScenario.unit_contribution),
-      );
-      params.set("assumption_source", s.commercialScenario.source);
-    }
     request<OpportunityResponse>(`v2/opportunities?${params}`, {
       signal: controller.signal,
     })
@@ -105,7 +101,6 @@ export function OpportunityDashboard() {
     s.actionLimit,
     offset,
     s.opportunityRevision,
-    s.commercialScenario,
     s.set,
   ]);
   useEffect(() => {
@@ -116,7 +111,7 @@ export function OpportunityDashboard() {
     let alive = true;
     setDetail(null);
     setError("");
-    getV2Detail(sid, s.opportunityDrawerId)
+    getV2Detail(sid, s.opportunityDrawerId, s.opportunityFilters)
       .then((d) => {
         if (alive) {
           setDetail(d);
@@ -137,7 +132,7 @@ export function OpportunityDashboard() {
       document.removeEventListener("keydown", close);
       document.body.style.overflow = previous;
     };
-  }, [sid, s.opportunityDrawerId, s.set]);
+  }, [sid, s.opportunityDrawerId, s.opportunityFilters, s.set]);
   const changeFilters = (patch: Partial<OpportunityFilters>) =>
     s.set({
       opportunityFilters: { ...s.opportunityFilters, ...patch },
@@ -147,12 +142,12 @@ export function OpportunityDashboard() {
     s.set({
       opportunityDrawerId: id,
       selectedId: id,
-      customerTab: "next-step",
+      customerTab: "activity",
     });
   const refresh = async () => {
     if (!s.opportunityDrawerId) return;
     const [d, tasks] = await Promise.all([
-      getV2Detail(sid, s.opportunityDrawerId),
+      getV2Detail(sid, s.opportunityDrawerId, s.opportunityFilters),
       getV2Followups(sid),
     ]);
     setDetail(d);
@@ -354,14 +349,7 @@ export function OpportunityDashboard() {
       <div className="page-heading opportunity-heading">
         <div>
           <h1>Opportunity dashboard</h1>
-          <p>Choose a group. Prepare the next conversation.</p>
         </div>
-        <button
-          className="button"
-          onClick={() => s.set({ assistantOpen: true })}
-        >
-          <Sparkles size={16} /> Ask Pulse
-        </button>
       </div>
       <div className="filters opportunity-filters">
         {(
@@ -441,12 +429,13 @@ export function OpportunityDashboard() {
             <div className="card-heading">
               <div>
                 <h2>Where should we focus?</h2>
-                <p>
-                  {data.quality.method === "kmeans"
-                    ? "Four opportunity clusters"
-                    : "Four priority zones"}{" "}
-                  · customers can belong to any behavioral segment
-                </p>
+                <InfoHint label="opportunity clusters">
+                  Four opportunity groups, independent of customer segments.
+                  Axes show relative percentile positions from −100 to +100;
+                  zero is the reference-cohort median. Size uses quantities, not
+                  profit. Shaded boundaries follow the frozen model. Filters do
+                  not refit it; identical evidence stays together.
+                </InfoHint>
               </div>
               <label className="point-limit">
                 Show
@@ -492,7 +481,7 @@ export function OpportunityDashboard() {
             </div>
             <Chart
               option={chart}
-              height={365}
+              height={480}
               label="Customer opportunities plotted by urgency and opportunity size. Select a group using the buttons above, or click a customer point."
               onClick={(params) => {
                 if (pending) return;
@@ -538,13 +527,6 @@ export function OpportunityDashboard() {
                 Review past-due records
               </label>
             </div>
-            <small>
-              Axes are relative percentile positions: 0 is the reference-cohort
-              median, −100 is lower and +100 is higher. Size uses quantities,
-              not profit. Shaded regions follow the frozen model boundaries;
-              filters do not refit them. Identical evidence keeps identical
-              positions.
-            </small>
           </Card>
           <div className="metrics opportunity-metrics">
             {data.metrics.map((m, i) => (
@@ -554,20 +536,18 @@ export function OpportunityDashboard() {
                 title={m.definition}
               >
                 <div className="metric-top">
-                  {i === 1 && data.scenario
-                    ? "Estimated contribution · scenario"
-                    : m.label}
+                  {m.label}{" "}
+                  <InfoHint label={m.label}>
+                    {m.definition} {m.caption}
+                  </InfoHint>
                 </div>
                 <strong>
-                  {i === 1 && data.scenario
-                    ? `${data.scenario.estimated_contribution == null ? "Unavailable" : "€" + format(data.scenario.estimated_contribution)}`
-                    : format(m.value)}
+                  {m.value == null ? (
+                    "Unavailable"
+                  ) : (
+                    <AnimatedNumber value={Number(m.value.toFixed(1))} />
+                  )}
                 </strong>
-                <span>
-                  {i === 1 && data.scenario
-                    ? `${format(data.scenario.expected_quantity)} calibrations × €${format(data.scenario.assumptions.unit_contribution)} assumed contribution`
-                    : m.caption}
-                </span>
                 {i === 3 && (
                   <button
                     className="text-button"
@@ -611,15 +591,11 @@ export function OpportunityDashboard() {
             <div className="card-heading">
               <div>
                 <h2>Your next best conversations</h2>
-                <p>
-                  {data.clusters.find((c) => c.id === data.selected_cluster)
-                    ?.label ||
-                    (data.selected_cluster === "needs-evidence"
-                      ? "Needs evidence"
-                      : "All matching accounts")}{" "}
-                  · {format(data.selected_count)} customers · sorted by evidence
-                  priority
-                </p>
+                <InfoHint label="customer shortlist">
+                  {data.selected_count.toLocaleString()} selected customers,
+                  ranked by evidence priority. The shortlist and metrics use the
+                  full selected group, not just displayed dots.
+                </InfoHint>
               </div>
               <div className="opportunity-toolbar">
                 <label>
@@ -654,68 +630,8 @@ export function OpportunityDashboard() {
                 >
                   <Download size={14} /> Export
                 </button>
-                <button
-                  className="button"
-                  onClick={() => setScenarioOpen(!scenarioOpen)}
-                >
-                  Financial scenario
-                </button>
               </div>
             </div>
-            {scenarioOpen && (
-              <form
-                className="opportunity-scenario"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const form = new FormData(e.currentTarget);
-                  s.set({
-                    commercialScenario: {
-                      unit_contribution: Number(form.get("margin")),
-                      source: String(form.get("source")),
-                    },
-                  });
-                }}
-              >
-                <label>
-                  Contribution per calibration (€)
-                  <input
-                    name="margin"
-                    aria-label="Assumed contribution per calibration"
-                    type="number"
-                    min="0"
-                    max="100000"
-                    step="0.01"
-                    defaultValue={s.commercialScenario?.unit_contribution}
-                    required
-                  />
-                </label>
-                <label>
-                  Assumption source
-                  <input
-                    name="source"
-                    maxLength={150}
-                    placeholder="Your supplied price/cost assumption"
-                    defaultValue={s.commercialScenario?.source}
-                    required
-                  />
-                </label>
-                <button className="button" disabled={pending}>
-                  Apply scenario
-                </button>
-                <button
-                  className="text-button"
-                  type="button"
-                  onClick={() => s.set({ commercialScenario: null })}
-                >
-                  Reset to quantities
-                </button>
-                <small>
-                  All-services forecast × assumed unit contribution. Not net
-                  profit or extra sales caused by outreach. Customer volume is
-                  directional (65.05% holdout WAPE).
-                </small>
-              </form>
-            )}
             <div className="integrated-table">
               <table>
                 <thead>
@@ -740,16 +656,25 @@ export function OpportunityDashboard() {
                         </span>
                       </td>
                       <td>
-                        {p.reasons[0] || "Needs more evidence"}
+                        {p.reason_types.includes("upcoming")
+                          ? "Upcoming calibration needs"
+                          : p.activity_flagged
+                            ? "Check reduced activity"
+                            : p.reason_types.includes("discovery")
+                              ? "Explore an additional service"
+                              : "Review customer history"}
                         <small>
                           {p.size_basis?.replaceAll("_", " ") || "Unscored"} ·{" "}
-                          {p.readiness.replaceAll("_", " ")}
+                          {p.readiness === "review_required"
+                            ? "Confirm details first"
+                            : p.readiness.replaceAll("_", " ")}
                         </small>
                       </td>
                       <td>
                         {format(p.due_recorded + p.due_inferred)}
                         <small>
-                          {p.due_recorded} recorded · {p.due_inferred} inferred
+                          {p.due_recorded} dates on file · {p.due_inferred}{" "}
+                          estimated
                           {data.filters.group !== "all"
                             ? ` · ${p.due_selected_category} in category`
                             : ""}
@@ -768,7 +693,7 @@ export function OpportunityDashboard() {
                         <small>
                           {p.activity_probability == null
                             ? "Return forecast unavailable"
-                            : `${Math.round(p.activity_probability * 100)}% any calibration · ${p.forecast_start}–${p.forecast_end}`}
+                            : `${Math.round(p.activity_probability * 100)}% chance of calibration activity`}
                         </small>
                       </td>
                       <td>

@@ -17,7 +17,12 @@ export function dispatchEvent(event: EventEnvelope) {
 
     case "ui.control.set":
       if (event.payload.control === "customers.tab")
-        s.set({ customerTab: event.payload.value });
+        s.set({
+          customerTab: event.payload.value,
+          ...(event.payload.activity_view
+            ? { customerActivityView: event.payload.activity_view }
+            : {}),
+        });
       else if (event.payload.control === "dashboard.action_limit")
         s.set({ actionLimit: event.payload.value });
       break;

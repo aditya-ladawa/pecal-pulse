@@ -141,9 +141,13 @@ export function getV2Customers(
     `v2/customers?${query}`,
   );
 }
-export const getV2Detail = (snapshot: string, customer: string) =>
+export const getV2Detail = (
+  snapshot: string,
+  customer: string,
+  filters?: import("@/types/opportunities").OpportunityFilters,
+) =>
   request<import("@/types/sales-v2").Detail>(
-    `v2/customers/${encodeURIComponent(customer)}?snapshot_id=${encodeURIComponent(snapshot)}`,
+    `v2/customers/${encodeURIComponent(customer)}?snapshot_id=${encodeURIComponent(snapshot)}${filters ? `&window_days=${filters.window_days}&include_past_due=${filters.include_past_due}&include_inferred=${filters.include_inferred}` : ""}`,
   );
 export const getV2Followups = (snapshot: string) =>
   request<{ items: import("@/types/sales").Followup[] }>(

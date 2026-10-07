@@ -91,6 +91,7 @@ export type UiCommand =
         | {
             control: "customers.tab";
             value: "activity" | "portfolio" | "next-step";
+            activity_view?: "monthly" | "quarter";
           }
         | { control: "dashboard.action_limit"; value: 5 | 10 | 12 };
     };
@@ -154,6 +155,7 @@ export interface WorkspaceContext {
   visible_customer_ids: string[];
   action_limit: 5 | 10 | 12;
   customer_tab: CustomerTab;
+  customer_activity_view: "monthly" | "quarter";
   artifact_ids: string[];
   page_snapshot?: PageSnapshot;
   snapshot_id?: string;

@@ -173,6 +173,7 @@ export function SalesAssistantProvider({ children }: { children: ReactNode }) {
               ).map((c) => c.id),
           action_limit: s.actionLimit,
           customer_tab: s.customerTab,
+          customer_activity_view: s.customerActivityView,
           artifact_ids: s.artifacts.slice(-50).map((a) => a.id),
         };
         const applied = new Set<string>();
@@ -322,17 +323,7 @@ export function SalesAssistant() {
     chatStatus = useSalesStore((s) => s.chatStatus),
     chatLoading = useSalesStore((s) => s.chatLoading),
     running = useAuiState((s) => s.thread.isRunning);
-  if (!open)
-    return (
-      <button
-        className="chat-launcher"
-        onClick={() => set({ assistantOpen: true })}
-        aria-label="Open sales assistant"
-      >
-        <Sparkles size={21} />
-        <span>Ask Pulse</span>
-      </button>
-    );
+  if (!open) return null;
   return (
     <aside
       className={`chat-drawer${expanded ? " expanded" : ""}`}

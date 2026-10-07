@@ -39,6 +39,7 @@ interface SalesState {
   assistantExpanded: boolean;
   actionLimit: 5 | 10 | 12;
   customerTab: CustomerTab;
+  customerActivityView: "monthly" | "quarter";
   threadId: string | null;
   chatStatus: ChatStatus | null;
   chatLoading: boolean;
@@ -77,6 +78,7 @@ export const useSalesStore = create<SalesState>((set) => ({
   assistantExpanded: false,
   actionLimit: 10,
   customerTab: "activity",
+  customerActivityView: "monthly",
   threadId: null,
   chatStatus: null,
   chatLoading: true,

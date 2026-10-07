@@ -13,9 +13,10 @@ import {
 } from "./api";
 import { openCustomer, dispatchEvent } from "@/core/events/router";
 import { Chart, ArtifactChart } from "@/modules/artifacts/Chart";
-import { Card } from "@/components/ui/Primitives";
+import { Card, InfoHint } from "@/components/ui/Primitives";
 import type { Bootstrap, Detail } from "@/types/sales-v2";
 import type { EventEnvelope, PageSnapshot } from "@/types/sales";
+import { CustomerSignals } from "./CustomerSignals";
 const count = (value: number | null | undefined) =>
   value == null
     ? "Unavailable"
@@ -28,7 +29,10 @@ export function integratedSnapshot(
   const opportunities = useSalesStore.getState().opportunities;
   if (page === "dashboard") {
     const metrics =
-      opportunities?.metrics.map(({ caption, ...metric }) => metric) || [];
+      opportunities?.metrics.map(({ caption, ...metric }) => ({
+        ...metric,
+        value: metric.value == null ? null : Number(metric.value.toFixed(1)),
+      })) || [];
     if (opportunities?.scenario && metrics[1])
       metrics[1] = {
         ...metrics[1],
@@ -41,22 +45,32 @@ export function integratedSnapshot(
     return { page, title: "Opportunity dashboard", metrics };
   }
   const metrics =
-    page === "customers" && detail
+    page === "customers" &&
+    detail &&
+    useSalesStore.getState().customerTab === "activity"
       ? [
           {
-            label: "Recorded requirement records",
-            value: detail.requirements.filter((r) => r.kind === "recorded")
-              .length,
-            unit: "instruments",
+            label: "Chance of calibration activity",
+            value:
+              detail.prediction?.activity.probability == null
+                ? null
+                : Number(
+                    (detail.prediction.activity.probability * 100).toFixed(1),
+                  ),
+            unit: "%",
             scope: detail.profile.display_name,
             definition:
-              "Recorded requirement evidence; examine window and eligibility before outreach.",
+              "Chance of at least one calibration in the next three complete months, not a sale or churn prediction.",
           },
           ...(detail.prediction?.calibration_volume.expected_total != null
             ? [
                 {
-                  label: "Expected calibrations · next 3 months",
-                  value: detail.prediction.calibration_volume.expected_total,
+                  label: "Estimated calibrations · next 3 months",
+                  value: Number(
+                    detail.prediction.calibration_volume.expected_total.toFixed(
+                      1,
+                    ),
+                  ),
                   unit: "calibration events",
                   scope: `${detail.prediction.calibration_volume.window_start} through ${detail.prediction.calibration_volume.window_end}`,
                   definition:
@@ -568,16 +582,21 @@ function Metric({
   label,
   value,
   caption,
+  suffix = "",
 }: {
   label: string;
   value: number | null | undefined;
   caption: string;
+  suffix?: string;
 }) {
   return (
     <div className="metric mint">
       <div className="metric-top">{label}</div>
-      <strong>{count(value)}</strong>
-      <span>{caption}</span>
+      <strong>
+        {count(value)}
+        {value == null ? "" : suffix}
+      </strong>
+      <InfoHint label={label}>{caption}</InfoHint>
     </div>
   );
 }
@@ -595,10 +614,34 @@ export function CustomerEvidence({
   const s = useSalesStore();
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const activityView = s.customerActivityView;
   const [showAllReasons, setShowAllReasons] = useState(false);
   useEffect(() => setShowAllReasons(false), [d.profile.customer_id]);
   const prediction = d.prediction;
   const volume = prediction?.calibration_volume;
+  const monthName = (value: string) =>
+    new Date(value.slice(0, 7) + "-01T12:00:00Z").toLocaleDateString(
+      undefined,
+      { month: "short", year: "numeric" },
+    );
+  const period = volume
+    ? `${monthName(volume.window_start)} – ${monthName(volume.window_end)}`
+    : "Forecast unavailable";
+  const futureMonths = volume
+    ? Array.from({ length: 3 }, (_, i) => {
+        const date = new Date(
+          volume.window_start.slice(0, 7) + "-01T12:00:00Z",
+        );
+        date.setUTCMonth(date.getUTCMonth() + i);
+        return date.toISOString().slice(0, 7);
+      })
+    : [];
+  const activityHistory = d.history.slice(
+    activityView === "monthly" ? -24 : -3,
+  );
+  const forecastQuality = d.forecast_quality;
+  const forecastSupported =
+    volume?.support.status === "supported" && volume.expected_total != null;
   const exportBrief = () => {
     const lines = [
       d.profile.display_name,
@@ -626,23 +669,9 @@ export function CustomerEvidence({
       <Card>
         <div className="card-heading">
           <div>
-            <small style={{ overflowWrap: "anywhere" }}>
-              {d.profile.customer_id}
-            </small>
             <h2>{d.profile.display_name}</h2>
-            <p>
-              {d.profile.industry_label || "Unknown industry"} ·{" "}
-              {d.profile.name_source === "identifier"
-                ? "Identifier-based name"
-                : "Verified name"}
-            </p>
+            <p>{d.profile.industry_label || "Sector not supplied"}</p>
           </div>
-          <button
-            className="button"
-            onClick={() => s.set({ assistantOpen: true })}
-          >
-            Ask Pulse
-          </button>
         </div>
         <div
           className="customer-tabs"
@@ -657,19 +686,24 @@ export function CustomerEvidence({
               onClick={() => s.set({ customerTab: tab })}
             >
               {tab === "activity"
-                ? "Activity & forecast"
+                ? "Overview"
                 : tab === "portfolio"
-                  ? "Portfolio & opportunities"
-                  : "Conversation & next step"}
+                  ? "Equipment"
+                  : "Next step"}
             </button>
           ))}
         </div>
       </Card>
       {s.customerTab === "activity" ? (
         <>
+          <small className="forecast-period">
+            Outlook: {period} · based on history through{" "}
+            {d.metadata.reference_date}
+          </small>
           <div className="metrics integrated-detail-metrics">
             <Metric
-              label="Any calibration · next 3 months"
+              label="Chance of calibration activity"
+              suffix="%"
               value={
                 prediction?.activity.probability == null
                   ? null
@@ -678,123 +712,173 @@ export function CustomerEvidence({
               caption={
                 prediction?.activity.probability == null
                   ? prediction?.activity.support.reason || "Unsupported history"
-                  : "Probability % · not churn or conversion"
-              }
-            />
-            <Metric
-              label="Expected calibrations · next 3 months"
-              value={volume?.expected_total}
-              caption={
-                volume
-                  ? `${volume.window_start}–${volume.window_end} · ${volume.method}`
-                  : "No supported forecast"
+                  : "Chance of at least one calibration in the forecast period; not a sale or churn prediction."
               }
             />
           </div>
           <Card>
-            <h2>Observed customer activity</h2>
+            <div className="card-heading">
+              <h2>Customer activity</h2>
+              <select
+                aria-label="Customer activity view"
+                value={activityView}
+                onChange={(e) =>
+                  s.set({
+                    customerActivityView: e.target.value as
+                      | "monthly"
+                      | "quarter",
+                  })
+                }
+              >
+                <option value="monthly">24 months of history</option>
+                <option value="quarter">3 months of history</option>
+              </select>
+              <InfoHint label="customer activity forecast">
+                Historical bars count completed calibrations, not orders. The
+                shaded area marks the three-month forecast window, not a
+                confidence interval.
+                {forecastSupported ? (
+                  <>
+                    <p>
+                      Data used:{" "}
+                      {forecastQuality?.input_months != null
+                        ? `the customer's ${forecastQuality.input_months} months of calibration history`
+                        : "the customer's historical calibration features"}{" "}
+                      through {d.metadata.reference_date}.
+                    </p>
+                    <p>
+                      {forecastQuality?.wape != null
+                        ? `Historical forecast error: ${(forecastQuality.wape * 100).toFixed(0)}% WAPE across ${forecastQuality.test_windows?.toLocaleString() ?? "supported"} test windows${forecastQuality.test_customers != null ? ` from ${forecastQuality.test_customers.toLocaleString()} customers` : ""}. Total absolute error divided by total actual volume; not this customer's accuracy.`
+                        : "Historical forecast error is unavailable."}
+                    </p>
+                    <p>
+                      This is a rough volume estimate. Monthly predictions have
+                      not been validated.
+                    </p>
+                  </>
+                ) : (
+                  <p>
+                    {volume?.support.reason ||
+                      "Insufficient history for a supported forecast."}
+                  </p>
+                )}
+              </InfoHint>
+            </div>
             <Chart
-              label={`${d.profile.display_name} observed calibration history`}
+              height={300}
+              label={`${d.profile.display_name} historical calibrations and shaded three-month forecast window`}
               option={{
                 tooltip: { trigger: "axis" },
-                grid: { left: 50, right: 20, bottom: 40, top: 20 },
+                grid: { left: 48, right: 16, bottom: 45, top: 60 },
                 xAxis: {
                   type: "category",
-                  data: d.history.map((h) => h.month),
+                  data: [
+                    ...activityHistory.map((h) => h.month),
+                    ...futureMonths,
+                  ],
                 },
-                yAxis: { type: "value" },
+                yAxis: { type: "value", min: 0, minInterval: 1 },
                 series: [
                   {
-                    name: "Observed calibrations",
+                    name: "Completed calibrations",
                     type: "bar",
-                    data: d.history.map((h) => h.calibration_events),
+                    barMaxWidth: 30,
+                    data: [
+                      ...activityHistory.map((h) => h.calibration_events),
+                      ...futureMonths.map(() => null),
+                    ],
+                    markArea: futureMonths.length
+                      ? {
+                          silent: true,
+                          itemStyle: { color: "rgba(160, 146, 193, 0.20)" },
+                          label: {
+                            show: true,
+                            color: "#675580",
+                            fontSize: 12,
+                            formatter: `3-month forecast\n${forecastSupported ? `≈ ${Math.round(volume!.expected_total!)} calibrations` : "Insufficient history"}`,
+                          },
+                          data: [
+                            [
+                              { xAxis: futureMonths[0] },
+                              { xAxis: futureMonths[2] },
+                            ],
+                          ],
+                        }
+                      : undefined,
                   },
                 ],
               }}
             />
-            <p>
-              {volume?.monthly
-                ? "Monthly forecasts supplied."
-                : "Forecast is a three-month total; monthly predictions and uncertainty intervals are unavailable."}
-            </p>
-            {prediction?.inactivity.flagged && (
-              <p>
-                <strong>Activity review:</strong>{" "}
-                {prediction.inactivity.reasons.join(" ")}
-              </p>
-            )}
           </Card>
+          <CustomerSignals detail={d} />
           <Card>
-            <h2>Why this account appears</h2>
-            <p>
-              Due-window actions use 90 days before and after the history
-              reference; older and later records remain in Portfolio evidence.
-              Past-due records require a timing check.
-            </p>
-            {d.action && d.action.reasons.length > 5 && (
-              <button
-                className="button"
-                onClick={() => setShowAllReasons(!showAllReasons)}
-              >
-                {showAllReasons
-                  ? "Show top 5 reasons"
-                  : `Show all ${d.action.reasons.length} reasons`}
-              </button>
-            )}
-            {d.action ? (
-              d.action.reasons
-                .slice(0, showAllReasons ? undefined : 5)
-                .map((r) => (
-                  <div className="integrated-reason" key={r.id}>
-                    <strong>{r.title}</strong>
-                    <p>{r.explanation}</p>
-                    <small>
-                      Quantity: {count(r.quantity)} {r.quantity_unit} ·{" "}
-                      {r.unknowns.join(" · ")}
-                    </small>
-                    <div className="integrated-pagination">
-                      <button
-                        className="button"
-                        disabled={pending}
-                        onClick={() =>
-                          onWorkflow({
-                            suppression: {
-                              reason_id: r.id,
-                              status: "resolved",
-                              until: null,
-                              note: "Not applicable; manually confirmed in prototype",
-                              updated_at: new Date().toISOString(),
-                            },
-                          })
-                        }
-                      >
-                        Mark not applicable
-                      </button>
-                      <button
-                        className="button"
-                        disabled={pending}
-                        onClick={() => {
-                          const until = new Date();
-                          until.setDate(until.getDate() + 30);
-                          void onWorkflow({
-                            suppression: {
-                              reason_id: r.id,
-                              status: "snoozed",
-                              until: until.toISOString().slice(0, 10),
-                              note: "Manual 30-day snooze",
-                              updated_at: new Date().toISOString(),
-                            },
-                          });
-                        }}
-                      >
-                        Snooze 30 days
-                      </button>
+            <details>
+              <summary>Review individual equipment items</summary>
+              {d.action && d.action.reasons.length > 5 && (
+                <button
+                  className="button"
+                  onClick={() => setShowAllReasons(!showAllReasons)}
+                >
+                  {showAllReasons
+                    ? "Show top 5 reasons"
+                    : `Show all ${d.action.reasons.length} reasons`}
+                </button>
+              )}
+              {d.action ? (
+                d.action.reasons
+                  .slice(0, showAllReasons ? undefined : 5)
+                  .map((r) => (
+                    <div className="integrated-reason" key={r.id}>
+                      <strong>{r.title}</strong>
+                      <p>{r.explanation}</p>
+                      <small>
+                        Quantity: {count(r.quantity)} {r.quantity_unit} ·{" "}
+                        {r.unknowns.join(" · ")}
+                      </small>
+                      <div className="integrated-pagination">
+                        <button
+                          className="button"
+                          disabled={pending}
+                          onClick={() =>
+                            onWorkflow({
+                              suppression: {
+                                reason_id: r.id,
+                                status: "resolved",
+                                until: null,
+                                note: "Not applicable; manually confirmed in prototype",
+                                updated_at: new Date().toISOString(),
+                              },
+                            })
+                          }
+                        >
+                          Mark not applicable
+                        </button>
+                        <button
+                          className="button"
+                          disabled={pending}
+                          onClick={() => {
+                            const until = new Date();
+                            until.setDate(until.getDate() + 30);
+                            void onWorkflow({
+                              suppression: {
+                                reason_id: r.id,
+                                status: "snoozed",
+                                until: until.toISOString().slice(0, 10),
+                                note: "Manual 30-day snooze",
+                                updated_at: new Date().toISOString(),
+                              },
+                            });
+                          }}
+                        >
+                          Snooze 30 days
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))
-            ) : (
-              <p>No active supported action. History remains available.</p>
-            )}
+                  ))
+              ) : (
+                <p>No active supported action. History remains available.</p>
+              )}
+            </details>
           </Card>
         </>
       ) : s.customerTab === "portfolio" ? (
@@ -889,7 +973,8 @@ export function CustomerEvidence({
             </div>
             {d.requirements.length > 50 && (
               <small>
-                Showing first 50 loaded records; source tier counts cover the full account.
+                Showing first 50 loaded records; source tier counts cover the
+                full account.
               </small>
             )}
           </Card>
@@ -903,29 +988,33 @@ export function CustomerEvidence({
                 Export brief
               </button>
             </div>
-            <h3>Known facts</h3>
-            <ul>
-              {d.preparation.facts.slice(0, 8).map((f, i) => (
-                <li key={i}>{f.text}</li>
-              ))}
-            </ul>
-            <h3>To confirm</h3>
-            <ul>
-              {d.preparation.unknowns.map((f, i) => (
-                <li key={i}>{f}</li>
-              ))}
-            </ul>
-            <h3>Useful questions</h3>
-            <ul>
-              {d.preparation.questions.slice(0, 5).map((f, i) => (
-                <li key={i}>{f}</li>
-              ))}
-            </ul>
             <p>
-              Showing up to 8 facts and 5 questions; Export brief includes the
-              complete evidence pack.
+              {d.action?.primary_type === "inactivity"
+                ? "Ask whether calibration plans or equipment needs have changed, then agree on a follow-up."
+                : d.action?.primary_type === "discovery"
+                  ? "Ask whether additional calibration services would help this customer."
+                  : "Confirm the next calibration batch, agree on timing, and record who will follow up."}
             </p>
-            <p>{d.preparation.suggested_next_step}</p>
+            <details>
+              <summary>Detailed evidence and suggested questions</summary>
+              <ul>
+                {d.preparation.facts.slice(0, 8).map((f, i) => (
+                  <li key={i}>{f.text}</li>
+                ))}
+              </ul>
+              <h3>Questions to consider</h3>
+              <ul>
+                {d.preparation.questions.slice(0, 5).map((f, i) => (
+                  <li key={i}>{f}</li>
+                ))}
+              </ul>
+              <h3>Still to confirm</h3>
+              <ul>
+                {d.preparation.unknowns.map((f, i) => (
+                  <li key={i}>{f}</li>
+                ))}
+              </ul>
+            </details>
             <form
               className="integrated-form"
               key={d.profile.customer_id + (d.workflow.account_owner || "")}
@@ -938,7 +1027,7 @@ export function CustomerEvidence({
               }}
             >
               <label>
-                Account action owner
+                Responsible teammate
                 <input
                   name="account_owner"
                   maxLength={100}
@@ -951,7 +1040,7 @@ export function CustomerEvidence({
               </button>
             </form>
             <label>
-              Quotation/order check
+              Is a quote or order already being handled?
               <select
                 value={d.workflow.checks.quotation_order}
                 disabled={pending}
@@ -964,13 +1053,17 @@ export function CustomerEvidence({
                   })
                 }
               >
-                <option value="unknown">Unknown</option>
+                <option value="unknown">Not checked yet</option>
                 <option value="reported_none">
-                  Manually checked: none reported
+                  Checked — no current quote or order reported
                 </option>
-                <option value="in_progress">In progress</option>
+                <option value="in_progress">Yes — already being handled</option>
               </select>
             </label>
+            <small>
+              Check with your team before contacting the customer. Historical
+              records do not show live quotations or orders.
+            </small>
           </Card>
           <Card>
             <h2>Record the next step</h2>
@@ -1010,7 +1103,12 @@ export function CustomerEvidence({
             >
               <label>
                 Owner
-                <input name="owner" required maxLength={100} />
+                <input
+                  name="owner"
+                  required
+                  maxLength={100}
+                  defaultValue={d.workflow.account_owner || ""}
+                />
               </label>
               <label>
                 Follow-up date
