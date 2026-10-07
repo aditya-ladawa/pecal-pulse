@@ -48,6 +48,14 @@ class AnalyticsTests(unittest.TestCase):
         after, _ = feature_row(history, cutoff)
         self.assertEqual(before, after)
 
+    def test_volume_candidates_are_compared_on_validation_only(self):
+        report = self.outputs["model_report"]
+        for name in ("boosted_poisson", "boosted_squared", "extra_trees", "previous_12_months_divided_by_4"):
+            self.assertIn(name, report["volume_metrics"])
+        best = min(report["volume_metrics"], key=lambda name: report["volume_metrics"][name]["validation"]["mae"])
+        self.assertEqual(report["selected_volume"], best)
+        self.assertIn("same_quarter_last_year_log", report["feature_names"])
+
     def test_sector_correlations_require_support(self):
         sector = self.outputs["sectors"]
         correlation = sector["correlation"]

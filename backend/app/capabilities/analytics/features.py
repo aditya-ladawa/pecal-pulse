@@ -12,6 +12,7 @@ FEATURE_NAMES = (
     "active_last_6", "mean_monthly_log", "tenure_log", "group_breadth_log",
     "season_sin", "season_cos", "active_fraction", "cadence_months",
     "gap_variability", "recency_to_cadence", "volume_momentum",
+    "year_quarter_average_log", "same_quarter_last_year_log", "recent_6_log",
 )
 
 
@@ -88,7 +89,9 @@ def feature_row(history: dict[int, dict], cutoff: int) -> tuple[list[float], dic
               log1p(tenure), log1p(breadth), sin(2 * pi * (cutoff % 12) / 12),
               cos(2 * pi * (cutoff % 12) / 12), len(active) / tenure,
               cadence or 0.0, pstdev(gaps) if len(gaps) > 1 else 0.0,
-              recency / cadence if cadence else 0.0, log1p(recent) - log1p(previous)]
+              recency / cadence if cadence else 0.0, log1p(recent) - log1p(previous),
+              log1p(volume(cutoff - 11, cutoff) / 4),
+              log1p(volume(cutoff - 11, cutoff - 9)), log1p(volume(cutoff - 5, cutoff))]
     return vector, {"recency_months": recency, "cadence_months": cadence,
                     "recent_volume": recent, "active_months": len(active), "tenure_months": tenure}
 

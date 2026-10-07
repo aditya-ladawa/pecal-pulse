@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from threadpoolctl import threadpool_limits
 
 from backend.app.capabilities.analytics.pipeline import build_outputs
 from backend.app.capabilities.analytics.service import publish_outputs
@@ -26,7 +27,8 @@ def main() -> None:
         snapshot = load_snapshot(args.snapshot_id)
     else:
         snapshot = json.loads(args.snapshot.read_text(encoding="utf-8"))
-    outputs = build_outputs(snapshot)
+    with threadpool_limits(limits=1):
+        outputs = build_outputs(snapshot)
     target = publish_outputs(outputs, args.output)
     report = outputs["model_report"]
     print(json.dumps({"path": str(target), "snapshot_id": report["snapshot_id"],
