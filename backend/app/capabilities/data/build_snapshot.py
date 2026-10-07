@@ -62,10 +62,13 @@ def convert_interval(value, unit):
     if value is None or value <= 0:
         return None, "no_positive_interval"
     code = (str(unit) if unit is not None else "").strip().upper()
+    # Numeric source codes verified against recorded date gaps: 1 year,
+    # 2 month, 3 week, 4 day. Day/week conversions remain approximate.
+    code = {"1": "YEAR", "2": "MONTH", "3": "WEEK", "4": "DAY"}.get(code, code)
     if code in MONTH_UNITS:
-        return int(value), None
+        return (int(value), None) if value <= 120 else (None, "implausible_interval_over_10_years")
     if code in YEAR_UNITS:
-        return int(value) * 12, None
+        return (int(value) * 12, None) if value <= 10 else (None, "implausible_interval_over_10_years")
     if code in DAY_UNITS:
         return max(1, round(value / 30.44)), "day_unit_converted_to_months"
     if code in WEEK_UNITS:
@@ -157,7 +160,7 @@ def build_snapshot(
 
     # --- profiles ---
     industry_map = {r["customer"]: r.get("industry") for r in industry_rows}
-    customers = set(first_seen) | set(industry_map) | {r["customer"] for r in groups_rows}
+    customers = set(first_seen) | set(industry_map) | {r["customer"] for r in groups_rows} | {r["customer"] for r in instrument_rows or [] if r.get("customer")}
     profiles = []
     for customer in sorted(customers):
         industry_id, industry_label = _industry_ids(industry_map.get(customer))
@@ -194,6 +197,13 @@ def build_snapshot(
 
     # --- instruments + events (optional until the instrument extract lands) ---
     instruments = []
+    last_by_instrument = {}
+    for event in event_rows or []:
+        if event["calibration_date"] <= reference_date:
+            key = str(event["instrument"])
+            last_by_instrument[key] = max(last_by_instrument.get(key, ""), event["calibration_date"])
+    if instrument_rows:
+        quality_flags.append("instrument_master_is_current_extract_not_point_in_time_at_history_reference")
     for row in instrument_rows or []:
         months, flag = convert_interval(row.get("nominal_interval"), row.get("interval_unit"))
         flags = [flag] if flag else []
@@ -208,7 +218,7 @@ def build_snapshot(
                     if row.get("equipment_group")
                     else None
                 ),
-                "last_calibration_date": row.get("last_calibration"),
+                "last_calibration_date": last_by_instrument.get(str(row["instrument"])),
                 "recorded_due_date": row.get("recorded_due"),
                 "nominal_interval_months": months,
                 "stopped": stopped,

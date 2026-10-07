@@ -117,7 +117,7 @@ def build_upcoming_reasons(
     for req in requirements:
         if req.customer_id != customer_id:
             continue
-        if req.eligibility == "excluded" or req.stopped is True:
+        if req.eligibility == "excluded" or req.stopped is True or req.kind == "unknown" or req.window_start is None or req.window_end is None:
             continue
         key = (req.group_id or "__ungrouped__", req.window_start, req.window_end)
         buckets.setdefault(key, []).append(req)

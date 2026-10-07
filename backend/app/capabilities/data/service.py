@@ -32,32 +32,43 @@ _SECTION_MODELS = {
 }
 
 
+def _manifest_only(path: Path) -> dict:
+    # Our snapshot writer places the small manifest first; don't parse hundreds
+    # of MB merely to enumerate or select a snapshot on every request.
+    with path.open() as source:
+        prefix = source.read(65536)
+    match = re.search(r'"manifest"\s*:', prefix)
+    if match is None:
+        raise ValueError("Snapshot manifest missing from header")
+    return json.JSONDecoder().raw_decode(prefix[match.end():].lstrip())[0]
+
+
 def available_snapshots() -> list[str]:
     ids = []
     if MOCK_SNAPSHOT_FILE.exists():
-        manifest = json.loads(MOCK_SNAPSHOT_FILE.read_text())["manifest"]
+        manifest = _manifest_only(MOCK_SNAPSHOT_FILE)
         ids.append(manifest["snapshot_id"])
     if RUNTIME_SNAPSHOT_DIR.is_dir():
         for file in sorted(RUNTIME_SNAPSHOT_DIR.glob("*.json")):
             try:
-                manifest = json.loads(file.read_text())["manifest"]
+                manifest = _manifest_only(file)
                 if manifest["snapshot_id"] not in ids:
                     ids.append(manifest["snapshot_id"])
-            except (json.JSONDecodeError, KeyError):
+            except (json.JSONDecodeError, KeyError, ValueError):
                 continue
     return ids
 
 
 def _snapshot_path(snapshot_id: str) -> Path:
-    raw = json.loads(MOCK_SNAPSHOT_FILE.read_text())
-    if raw["manifest"]["snapshot_id"] == snapshot_id:
+    raw = _manifest_only(MOCK_SNAPSHOT_FILE)
+    if raw["snapshot_id"] == snapshot_id:
         return MOCK_SNAPSHOT_FILE
     if not re.fullmatch(r"[A-Za-z0-9_-]+", snapshot_id):
         raise ValueError("Invalid snapshot ID")
     candidate = RUNTIME_SNAPSHOT_DIR / f"{snapshot_id}.json"
     if candidate.is_file():
-        raw = json.loads(candidate.read_text())
-        if raw.get("manifest", {}).get("snapshot_id") == snapshot_id:
+        raw = _manifest_only(candidate)
+        if raw.get("snapshot_id") == snapshot_id:
             return candidate
     raise ValueError(f"Unknown snapshot: {snapshot_id}")
 

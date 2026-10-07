@@ -176,7 +176,7 @@ class SharedShapeTests(unittest.TestCase):
             {**SHARED_PROFILE, "customer_id": "SYN-002"}, reqs, None, [],
             SHARED_WORKFLOW)
         assert action is not None
-        self.assertEqual(len(action.reasons), 2)
+        self.assertEqual(len(action.reasons), 1)
         self.assertTrue(all(r.unknowns for r in action.reasons))
 
     def test_null_distinct_falls_back_to_row_presence(self):

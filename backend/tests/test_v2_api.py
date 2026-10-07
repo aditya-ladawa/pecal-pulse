@@ -41,7 +41,7 @@ class V2ApiTests(unittest.TestCase):
         self.assertEqual(modules["predictions"]["status"], "unavailable")
         self.assertEqual(modules["insights"]["status"], "ready")
         self.assertEqual(body["kpis"]["customers"]["value"], 3)
-        self.assertEqual(len(body["actions"]), 2)
+        self.assertEqual(len(body["actions"]), 1)
         self.assertEqual(body["actions"][0]["customer_id"], "SYN-001")
 
     def test_unknown_snapshot_is_404(self):
@@ -83,7 +83,7 @@ class V2ApiTests(unittest.TestCase):
             "/api/v2/customers", params={"snapshot_id": SNAPSHOT, "action": "upcoming"}
         )
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(res.json()["total"], 2)
+        self.assertEqual(res.json()["total"], 1)
         res = self.client.get(
             "/api/v2/customers", params={"snapshot_id": SNAPSHOT, "action": "discovery"}
         )

@@ -1,7 +1,7 @@
 import unittest
 from datetime import date
 from backend.app.capabilities.data.requirements import _add_months, infer_requirements
-from backend.app.capabilities.data.build_snapshot import build_snapshot
+from backend.app.capabilities.data.build_snapshot import build_snapshot, convert_interval
 from backend.app.contracts.sales_v2 import InstrumentRecord
 from backend.app.capabilities.insights.peers import normalize_industry
 
@@ -26,3 +26,10 @@ class IntegrationRepairTests(unittest.TestCase):
 
     def test_canonical_miscellaneous_industry_is_excluded(self):
         self.assertEqual(normalize_industry("IND-SONSTIGES"), "sonstiges")
+
+    def test_numeric_interval_units_and_outliers(self):
+        self.assertEqual(convert_interval(1, 1)[0], 12)
+        self.assertEqual(convert_interval(12, 2)[0], 12)
+        self.assertEqual(convert_interval(52, 3)[0], 12)
+        self.assertEqual(convert_interval(365, 4)[0], 12)
+        self.assertIsNone(convert_interval(601703, 2)[0])
