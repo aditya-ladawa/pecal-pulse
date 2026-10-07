@@ -11,7 +11,8 @@ from .features import iso_month, month_index
 
 
 def build_sectors(profiles: list[dict], histories: dict[str, dict[int, dict]],
-                  history_start: str, complete_through_month: str) -> dict:
+                  history_start: str, complete_through_month: str,
+                  covered_months: list[str] | None = None) -> dict:
     start, end = month_index(history_start), month_index(complete_through_month)
     industries: dict[str, dict] = {}
     for profile in profiles:
@@ -27,10 +28,12 @@ def build_sectors(profiles: list[dict], histories: dict[str, dict[int, dict]],
             if start <= month <= end:
                 sector["counts"][month] += row["calibration_events"]
     ids = sorted(industries)
-    months = list(range(start, end + 1))
+    months = list(range(start, end + 1)) if covered_months is None else [month_index(m) for m in covered_months]
     history = []
     forecasts = []
     warnings = []
+    if months != list(range(start, end + 1)):
+        warnings.append("Incomplete month coverage: missing months are excluded, not zero-filled")
     changes = {}
     for industry_id in ids:
         item = industries[industry_id]
@@ -39,20 +42,26 @@ def build_sectors(profiles: list[dict], histories: dict[str, dict[int, dict]],
                         "customers": len(item["customer_ids"]),
                         "monthly": [{"month": iso_month(t), "calibration_events": v}
                                     for t, v in zip(months, values)]})
-        changes[industry_id] = np.diff(np.log1p(values))
+        changes[industry_id] = {months[i]: np.log1p(values[i]) - np.log1p(values[i - 1])
+                               for i in range(1, len(months)) if months[i] == months[i - 1] + 1}
         if len(item["customer_ids"]) < 20:
             warnings.append(f"{industry_id}: fewer than 20 accounts; sector estimates may be unstable")
         # Compare two strictly past-only one-step forecasts over the last 12 points.
+        # Only the contiguous covered tail ending at the forecast origin is usable.
+        tail = len(months) - 1
+        while tail > 0 and months[tail] == months[tail - 1] + 1:
+            tail -= 1
+        forecast_values = values[tail:] if months and months[-1] == end else []
         errors = {"last_month": [], "trailing_3_mean": []}
-        for i in range(max(3, len(values) - 12), len(values)):
-            errors["last_month"].append(abs(values[i] - values[i - 1]))
-            errors["trailing_3_mean"].append(abs(values[i] - sum(values[i - 3:i]) / 3))
+        for i in range(max(3, len(forecast_values) - 12), len(forecast_values)):
+            errors["last_month"].append(abs(forecast_values[i] - forecast_values[i - 1]))
+            errors["trailing_3_mean"].append(abs(forecast_values[i] - sum(forecast_values[i - 3:i]) / 3))
         # Select on the first half of the walk-forward points, then report
         # the untouched second half. Short histories remain unavailable.
         split = len(errors["last_month"]) // 2
         method = min(errors, key=lambda key: sum(errors[key][:split]) / split) if split >= 3 else None
-        expected = (float(values[-1]) if method == "last_month" else
-                    sum(values[-3:]) / 3 if method else None)
+        expected = (float(forecast_values[-1]) if method == "last_month" else
+                    sum(forecast_values[-3:]) / 3 if method else None)
         forecasts.append({"industry_id": industry_id, "metric": "calibration_events",
                           "method": method, "forecast_month": iso_month(end + 1),
                           "expected": expected, "validation_mae":
@@ -66,8 +75,10 @@ def build_sectors(profiles: list[dict], histories: dict[str, dict[int, dict]],
     for i, left in enumerate(ids):
         for j in range(i, len(ids)):
             right = ids[j]
-            a, b = changes[left], changes[right]
-            n = min(len(a), len(b))
+            common = sorted(set(changes[left]) & set(changes[right]))
+            a = [changes[left][month] for month in common]
+            b = [changes[right][month] for month in common]
+            n = len(common)
             samples[i][j] = samples[j][i] = n
             if n < 24 or np.std(a) == 0 or np.std(b) == 0:
                 value = None
@@ -82,4 +93,4 @@ def build_sectors(profiles: list[dict], histories: dict[str, dict[int, dict]],
                 "values": matrix, "pair_sample_counts": samples,
                 "method": "pearson_log1p_monthly_change",
                 "window_start": iso_month(start + 1) if start < end else iso_month(start),
-                "window_end": iso_month(end), "warnings": warnings}}
+                "window_end": iso_month(end), "warnings": warnings} if ids else None}

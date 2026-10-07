@@ -1,14 +1,14 @@
 {
-  "snapshot_id": "synthetic-analytics-v1",
+  "snapshot_id": "synthetic-analytics-v2",
   "customer_id": "synthetic-customer-00",
   "reference_date": "2026-12-31",
   "segment_id": "segment-4",
   "activity": {
     "target": "any_calibration_next_3_months",
-    "probability": 0.9999978410157769,
+    "probability": 0.9999969813117675,
     "window_start": "2027-01",
     "window_end": "2027-03",
-    "model_version": "analytics-v1",
+    "model_version": "analytics-v2",
     "support": {
       "status": "supported",
       "reason": null,
@@ -27,7 +27,7 @@
     "interval_level": null,
     "monthly": null,
     "method": "same_3_months_last_year",
-    "model_version": "analytics-v1",
+    "model_version": "analytics-v2",
     "support": {
       "status": "supported",
       "reason": null,

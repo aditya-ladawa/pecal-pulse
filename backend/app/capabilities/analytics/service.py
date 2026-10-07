@@ -9,6 +9,10 @@ import tempfile
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import TypeAdapter
+
+from ...contracts import sales_v2 as v2
+
 FILES = ("manifest", "predictions", "segments", "sectors", "model_report")
 DEFAULT_ROOT = Path(__file__).resolve().parents[4] / "data" / "runtime" / "analytics"
 
@@ -23,6 +27,8 @@ def validate_outputs(outputs: dict) -> None:
     snapshot_id = meta["snapshot_id"]
     reference_date = meta["reference_date"]
     _check_id(snapshot_id)
+    TypeAdapter(list[v2.CustomerPrediction]).validate_python(outputs["predictions"])
+    TypeAdapter(list[v2.SegmentSummary]).validate_python(outputs["segments"])
     seen = set()
     for prediction in outputs["predictions"]:
         if prediction["snapshot_id"] != snapshot_id or prediction["reference_date"] != reference_date:
@@ -51,19 +57,13 @@ def validate_outputs(outputs: dict) -> None:
         if payload["snapshot_id"] != snapshot_id or payload["reference_date"] != reference_date:
             raise ValueError(f"{name} snapshot/reference mismatch")
     correlation = outputs["sectors"]["correlation"]
-    size = len(correlation["industry_ids"])
-    if len(correlation["labels"]) != size:
-        raise ValueError("Sector labels do not align")
-    for matrix in (correlation["values"], correlation["pair_sample_counts"]):
-        if len(matrix) != size or any(len(row) != size for row in matrix):
-            raise ValueError("Sector matrix is not square")
-    for i in range(size):
-        for j in range(size):
-            value = correlation["values"][i][j]
-            if value is not None and not -1 <= value <= 1:
-                raise ValueError("Invalid sector correlation")
-            if value != correlation["values"][j][i]:
-                raise ValueError("Asymmetric sector correlation")
+    if correlation is not None:
+        v2.SectorCorrelation.model_validate(correlation)
+        size = len(correlation["industry_ids"])
+        for i in range(size):
+            for j in range(size):
+                if correlation["values"][i][j] != correlation["values"][j][i]:
+                    raise ValueError("Asymmetric sector correlation")
     # Reject NaN/Infinity before publication; JSON `null` represents unknown.
     json.dumps(outputs, allow_nan=False)
 
@@ -102,9 +102,14 @@ def load_outputs(snapshot_id: str, root: Path = DEFAULT_ROOT) -> dict:
 
 
 def get_prediction(customer_id: str, snapshot_id: str,
-                   root: Path = DEFAULT_ROOT) -> dict | None:
+                   root: Path = DEFAULT_ROOT) -> v2.CustomerPrediction | None:
     outputs = load_outputs(snapshot_id, root)
-    return next((item for item in outputs["predictions"] if item["customer_id"] == customer_id), None)
+    raw = next((item for item in outputs["predictions"] if item["customer_id"] == customer_id), None)
+    return v2.CustomerPrediction.model_validate(raw) if raw else None
+
+
+def get_segments(snapshot_id: str, root: Path = DEFAULT_ROOT) -> list[v2.SegmentSummary]:
+    return TypeAdapter(list[v2.SegmentSummary]).validate_python(load_outputs(snapshot_id, root)["segments"])
 
 
 def get_sectors(snapshot_id: str, root: Path = DEFAULT_ROOT) -> dict:

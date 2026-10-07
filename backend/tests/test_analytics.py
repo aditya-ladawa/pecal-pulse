@@ -8,6 +8,9 @@ from backend.app.capabilities.analytics.features import (feature_row, index_hist
     inactivity_evidence, month_index, next_month_window, support)
 from backend.app.capabilities.analytics.pipeline import build_outputs
 from backend.app.capabilities.analytics.sectors import build_sectors
+from backend.app.capabilities.data.service import load_snapshot
+from backend.app.capabilities.data.build_snapshot import build_snapshot
+from backend.app.contracts import sales_v2 as v2
 from backend.app.capabilities.analytics.service import (get_prediction, load_outputs,
     publish_outputs, validate_outputs)
 
@@ -37,7 +40,7 @@ class AnalyticsTests(unittest.TestCase):
         self.assertEqual(row["activity"]["support"]["status"], "insufficient_history")
 
     def test_features_do_not_see_future_rows(self):
-        history = index_history(self.fixture["monthly_history"], "2026-12")["synthetic-customer-00"]
+        history = index_history(self.fixture["history"], "2026-12")["synthetic-customer-00"]
         cutoff = month_index("2025-06")
         before, _ = feature_row(history, cutoff)
         history[month_index("2026-12")] = {"calibration_events": 100000,
@@ -57,8 +60,8 @@ class AnalyticsTests(unittest.TestCase):
 
     def test_identical_histories_leave_segments_unassigned(self):
         fixture = make_fixture()
-        original = [r for r in fixture["monthly_history"] if r["customer_id"] == "synthetic-customer-00"]
-        fixture["monthly_history"] = [{**row, "customer_id": profile["customer_id"]}
+        original = [r for r in fixture["history"] if r["customer_id"] == "synthetic-customer-00"]
+        fixture["history"] = [{**row, "customer_id": profile["customer_id"]}
                                      for profile in fixture["profiles"] for row in original]
         output = build_outputs(fixture)
         self.assertEqual(output["segments"], [])
@@ -78,7 +81,7 @@ class AnalyticsTests(unittest.TestCase):
     def test_holdout_labels_do_not_choose_models(self):
         fixture = make_fixture()
         # Test labels begin after validation labels end (2026-04 onward).
-        for row in fixture["monthly_history"]:
+        for row in fixture["history"]:
             if row["month"] >= "2026-05":
                 row["calibration_events"] *= 50
         output = build_outputs(fixture)
@@ -98,14 +101,63 @@ class AnalyticsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=Path.cwd()) as folder:
             root = Path(folder)
             publish_outputs(self.outputs, root)
-            loaded = load_outputs("synthetic-analytics-v1", root)
+            loaded = load_outputs("synthetic-analytics-v2", root)
             self.assertEqual(len(loaded["predictions"]), 30)
-            self.assertIsNotNone(get_prediction("synthetic-customer-00", "synthetic-analytics-v1", root))
+            self.assertIsInstance(get_prediction("synthetic-customer-00", "synthetic-analytics-v2", root), v2.CustomerPrediction)
             with self.assertRaises(FileExistsError):
                 publish_outputs(self.outputs, root)
             loaded["predictions"][0]["snapshot_id"] = "different"
             with self.assertRaises(ValueError):
                 validate_outputs(loaded)
+
+    def test_member1_typed_snapshot_consumes_shared_contract(self):
+        output = build_outputs(load_snapshot("synthetic-v1"))
+        validate_outputs(output)
+        self.assertEqual(output["manifest"]["snapshot_id"], "synthetic-v1")
+        self.assertEqual(len(output["predictions"]), 3)
+        self.assertFalse(output["manifest"]["ready"])
+        self.assertTrue(all(p["activity"]["probability"] is None for p in output["predictions"]))
+        self.assertEqual(output["sectors"]["correlation"]["pair_sample_counts"][0][0], 2)
+        self.assertTrue(all(p["inactivity"]["support"]["status"] == "unavailable" for p in output["predictions"]))
+
+    def test_member1_builder_produces_trainable_snapshot(self):
+        source = make_fixture()
+        snapshot = build_snapshot(
+            [{"customer": r["customer_id"], "month": r["month"], "calibrations": r["calibration_events"],
+              "instruments": r["distinct_instruments"], "equipment_groups": r["equipment_group_count"],
+              "labs": r["lab_count"]} for r in source["history"]],
+            [{"customer": p["customer_id"], "industry": p["industry_label"]} for p in source["profiles"]],
+            [], snapshot_id="synthetic-builder-analytics", extracted_at="2027-01-01T00:00:00Z",
+            reference_date="2026-12-31", complete_through_month="2026-12", history_start="2024-01")
+        output = build_outputs(snapshot)
+        validate_outputs(output)
+        self.assertTrue(output["manifest"]["ready"])
+        self.assertEqual(output["model_report"]["supported_customers"], 29)
+        self.assertTrue(all(p["snapshot_id"] == snapshot["manifest"]["snapshot_id"] for p in output["predictions"]))
+
+    def test_missing_covered_month_does_not_become_zero(self):
+        fixture = make_fixture()
+        fixture["month_grid"].remove("2025-06")
+        fixture["history"] = [row for row in fixture["history"] if row["month"] != "2025-06"]
+        output = build_outputs(fixture)
+        self.assertFalse(output["manifest"]["ready"])
+        self.assertEqual(output["sectors"]["correlation"]["pair_sample_counts"][0][0], 33)
+        self.assertTrue(all(p["calibration_volume"]["expected_total"] is None for p in output["predictions"]))
+
+    def test_no_known_industries_has_no_correlation(self):
+        fixture = make_fixture()
+        for profile in fixture["profiles"]:
+            profile["industry_id"] = profile["industry_label"] = None
+        output = build_outputs(fixture)
+        self.assertIsNone(output["sectors"]["correlation"])
+        validate_outputs(output)
+
+    def test_customer_gaps_reject_incomplete_normalized_export(self):
+        fixture = make_fixture()
+        fixture["history"] = [row for row in fixture["history"]
+                              if not (row["customer_id"] == "synthetic-customer-00" and row["month"] == "2025-06")]
+        with self.assertRaisesRegex(ValueError, "Uncovered customer months"):
+            build_outputs(fixture)
 
 
 if __name__ == "__main__":
