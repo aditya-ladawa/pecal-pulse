@@ -4,7 +4,7 @@ import type {
   ToolCallMessagePart,
   ThreadMessageLike,
 } from "@assistant-ui/react";
-export type Page = "dashboard" | "customers" | "follow-ups";
+export type Page = "dashboard" | "customers" | "follow-ups" | "insights";
 export type ActionType = "upcoming" | "inactivity" | "discovery";
 export type Segment = "Frequent" | "Intermittent" | "Occasional";
 export type CustomerFilters = {
@@ -66,13 +66,21 @@ export interface Workspace {
 export interface ChartArtifact {
   id: string;
   title: string;
-  kind: "bar" | "line";
+  kind: "bar" | "line" | "heatmap";
   labels: string[];
-  datasets: { name: string; values: number[] }[];
-  unit: "calibrations" | "instruments" | "customers";
+  datasets: { name: string; values: (number | null)[] }[];
+  unit: "calibrations" | "instruments" | "customers" | "correlation";
   source: "mock" | "historical";
 }
 export type UiCommand =
+  | {
+      type: "opportunities.filters.set";
+      payload: Partial<import("./opportunities").OpportunityFilters>;
+    }
+  | {
+      type: "opportunities.cluster.select";
+      payload: { cluster_id: string | null };
+    }
   | { type: "ui.navigate"; payload: { page: Page } }
   | { type: "customers.filters.set"; payload: Partial<CustomerFilters> }
   | { type: "customers.select"; payload: { customer_id: string } }
@@ -121,7 +129,7 @@ export interface ChatMessage {
 export type CustomerTab = "activity" | "portfolio" | "next-step";
 export interface PageMetric {
   label: string;
-  value: number;
+  value: number | null;
   unit: string;
   scope: string;
   definition: string;
@@ -132,6 +140,13 @@ export interface PageSnapshot {
   metrics: PageMetric[];
 }
 export interface WorkspaceContext {
+  opportunity_filters?: import("./opportunities").OpportunityFilters;
+  opportunity_cluster?: string | null;
+  opportunity_model_version?: string;
+  opportunity_selection_revision?: string;
+  commercial_scenario?: import("./opportunities").CommercialScenario | null;
+  customer_view?: "accounts" | "follow-ups";
+
   page: Page;
   customer_id: string | null;
   filters: CustomerFilters;

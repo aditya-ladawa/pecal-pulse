@@ -189,7 +189,7 @@ export function Dashboard() {
             <UsersRound size={18} />
           </div>
           <strong>
-            <AnimatedNumber value={metrics[0].value} />
+            <AnimatedNumber value={metrics[0].value ?? 0} />
           </strong>
           <span>Across 5 demo industries</span>
           <div className="metric-decoration" />
@@ -200,7 +200,7 @@ export function Dashboard() {
             <CalendarDays size={18} />
           </div>
           <strong>
-            <AnimatedNumber value={metrics[1].value} />
+            <AnimatedNumber value={metrics[1].value ?? 0} />
             <small> instruments</small>
           </strong>
           <span>Mock due-date window · next 30 days</span>
@@ -211,7 +211,7 @@ export function Dashboard() {
             <Clock3 size={18} />
           </div>
           <strong>
-            <AnimatedNumber value={metrics[2].value} />
+            <AnimatedNumber value={metrics[2].value ?? 0} />
           </strong>
           <span>Due or overdue on the demo date</span>
         </div>
@@ -221,7 +221,7 @@ export function Dashboard() {
             <ChartNoAxesCombined size={18} />
           </div>
           <strong>
-            <AnimatedNumber value={metrics[3].value} />
+            <AnimatedNumber value={metrics[3].value ?? 0} />
           </strong>
           <span>Unusual gaps to investigate</span>
         </div>

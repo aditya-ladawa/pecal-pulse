@@ -107,6 +107,8 @@ export interface Detail {
     window_start: string;
     window_end: string;
   }[];
+  requirement_tier_counts: Record<string, number>;
+  requirements_display_limit: number | null;
   requirements: {
     id: string;
     kind: string;
@@ -154,6 +156,7 @@ export interface Detail {
     suggested_next_step: string;
   };
   workflow: {
+    account_owner: string | null;
     checks: {
       quotation_order: string;
       recent_contact: string;

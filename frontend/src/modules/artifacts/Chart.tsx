@@ -9,10 +9,12 @@ export function Chart({
   option,
   label,
   height = 260,
+  onClick,
 }: {
   option: EChartsOption;
   label: string;
   height?: number;
+  onClick?: (params: { data?: unknown; seriesName?: string }) => void;
 }) {
   const element = useRef<HTMLDivElement>(null),
     instance = useRef<echarts.ECharts | null>(null);
@@ -39,6 +41,14 @@ export function Chart({
       { notMerge: true },
     );
   }, [option]);
+  useEffect(() => {
+    const chart = instance.current;
+    if (!chart || !onClick) return;
+    chart.on("click", onClick);
+    return () => {
+      chart.off("click", onClick);
+    };
+  }, [onClick]);
   return (
     <div
       role="img"
@@ -56,6 +66,41 @@ export function ArtifactChart({
   artifact: ChartArtifact;
   compact?: boolean;
 }) {
+  if (artifact.kind === "heatmap")
+    return (
+      <Chart
+        label={artifact.title + ". Descriptive correlation, not causation."}
+        height={compact ? 250 : 450}
+        option={{
+          tooltip: { trigger: "item" },
+          grid: { left: 125, right: 25, top: 20, bottom: 120 },
+          xAxis: {
+            type: "category",
+            data: artifact.labels,
+            axisLabel: { rotate: 55, fontSize: 9 },
+          },
+          yAxis: {
+            type: "category",
+            data: artifact.datasets.map((d) => d.name),
+            axisLabel: { fontSize: 9 },
+          },
+          visualMap: {
+            min: -1,
+            max: 1,
+            show: false,
+            inRange: { color: ["#edb482", "#f5f5ec", "#72966a"] },
+          },
+          series: [
+            {
+              type: "heatmap",
+              data: artifact.datasets.flatMap((d, y) =>
+                d.values.flatMap((v, x) => (v == null ? [] : [[x, y, v]])),
+              ),
+            },
+          ],
+        }}
+      />
+    );
   const option: EChartsOption = {
     tooltip: {
       trigger: "axis",
@@ -83,7 +128,7 @@ export function ArtifactChart({
     },
     series: artifact.datasets.map((d) => ({
       name: d.name,
-      type: artifact.kind,
+      type: artifact.kind === "bar" ? ("bar" as const) : ("line" as const),
       data: d.values,
       ...(artifact.kind === "bar"
         ? { barMaxWidth: 34, itemStyle: { borderRadius: [8, 8, 0, 0] } }

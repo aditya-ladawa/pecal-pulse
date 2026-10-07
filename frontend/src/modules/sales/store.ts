@@ -11,7 +11,21 @@ import type {
   ChatStatus,
 } from "@/types/sales";
 import type { Bootstrap, CustomerList, Detail } from "@/types/sales-v2";
+import {
+  defaultOpportunityFilters,
+  type OpportunityFilters,
+  type OpportunityResponse,
+  type CommercialScenario,
+} from "@/types/opportunities";
 interface SalesState {
+  opportunities: OpportunityResponse | null;
+  opportunityFilters: OpportunityFilters;
+  opportunityCluster: string | null;
+  opportunityDisplayLimit: number;
+  opportunityDrawerId: string | null;
+  opportunityRevision: number;
+  commercialScenario: CommercialScenario | null;
+  customerView: "accounts" | "follow-ups";
   v2: Bootstrap | null;
   v2List: CustomerList | null;
   v2Detail: Detail | null;
@@ -42,6 +56,14 @@ export const defaultFilters: CustomerFilters = {
   query: "",
 };
 export const useSalesStore = create<SalesState>((set) => ({
+  opportunities: null,
+  opportunityFilters: defaultOpportunityFilters,
+  opportunityCluster: null,
+  opportunityDisplayLimit: 200,
+  opportunityDrawerId: null,
+  opportunityRevision: 0,
+  commercialScenario: null,
+  customerView: "accounts",
   v2: null,
   v2List: null,
   v2Detail: null,

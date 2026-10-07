@@ -3,20 +3,28 @@ from typing import Literal
 from uuid import UUID
 from pydantic import Field
 from ..capabilities.sales.models import ChatContext, StrictModel
+from ..contracts.opportunities import OpportunityFilters, ScenarioAssumptions
 
 class PageMetric(StrictModel):
     label: str = Field(max_length=150)
-    value: float
+    value: float | None
     unit: str = Field(max_length=50)
     scope: str = Field(max_length=300)
     definition: str = Field(max_length=1000)
 
 class PageSnapshot(StrictModel):
-    page: Literal["dashboard", "customers", "follow-ups"]
+    page: Literal["dashboard", "customers", "follow-ups", "insights"]
     title: str = Field(max_length=150)
     metrics: list[PageMetric] = Field(default_factory=list, max_length=20)
 
 class WorkspaceContext(ChatContext):
+    opportunity_filters: OpportunityFilters = Field(default_factory=OpportunityFilters)
+    opportunity_cluster: Literal["act-now", "plan-larger", "focused-follow-up", "nurture", "needs-evidence"] | None = None
+    opportunity_model_version: str | None = None
+    opportunity_selection_revision: str | None = None
+    commercial_scenario: ScenarioAssumptions | None = None
+    customer_view: Literal["accounts", "follow-ups"] = "accounts"
+
     page_snapshot: PageSnapshot | None = None
     snapshot_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]+$", max_length=100)
     reference_date: str | None = None

@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useSalesStore } from "./store";
+import { OpportunityDashboard } from "./OpportunityDashboard";
 import {
   getV2Bootstrap,
   getV2Customers,
@@ -22,76 +23,56 @@ const count = (value: number | null | undefined) =>
 export function integratedSnapshot(
   boot: Bootstrap,
   detail: Detail | null,
-  page: "dashboard" | "customers" | "follow-ups",
+  page: "dashboard" | "customers" | "follow-ups" | "insights",
 ): PageSnapshot {
+  const opportunities = useSalesStore.getState().opportunities;
+  if (page === "dashboard") {
+    const metrics =
+      opportunities?.metrics.map(({ caption, ...metric }) => metric) || [];
+    if (opportunities?.scenario && metrics[1])
+      metrics[1] = {
+        ...metrics[1],
+        label: "Estimated contribution · scenario",
+        value: opportunities.scenario.estimated_contribution,
+        unit: "EUR",
+        definition:
+          "Supported account-wide calibration forecast multiplied by supplied unit contribution; not net profit or incremental outreach benefit.",
+      };
+    return { page, title: "Opportunity dashboard", metrics };
+  }
   const metrics =
-    page === "dashboard"
+    page === "customers" && detail
       ? [
           {
-            label: "Customers to review",
-            value: boot.kpis.customers.value,
-            unit: "customers",
-            scope: "All snapshot accounts",
-            definition: "Accounts in the source snapshot.",
-          },
-          {
             label: "Recorded requirement records",
-            value: boot.kpis.requirements_by_kind.recorded || 0,
+            value: detail.requirements.filter((r) => r.kind === "recorded")
+              .length,
             unit: "instruments",
-            scope: "All snapshot instruments; all dates",
+            scope: detail.profile.display_name,
             definition:
-              "Instruments with recorded requirement dates. Includes excluded/review-required cases; not a near-term forecast or order count.",
+              "Recorded requirement evidence; examine window and eligibility before outreach.",
           },
-          {
-            label: "Inferred requirement records",
-            value:
-              (boot.kpis.requirements_by_kind.nominal_interval || 0) +
-              (boot.kpis.requirements_by_kind.repeat_history || 0),
-            unit: "instruments",
-            scope: "All snapshot instruments; all dates",
-            definition:
-              "Nominal-interval and repeat-history requirement tiers; not confirmed upcoming work.",
-          },
-          {
-            label: "Open follow-ups",
-            value: boot.kpis.open_followups.value,
-            unit: "tasks",
-            scope: "Local workflow store",
-            definition: "All open follow-ups; not only overdue tasks.",
-          },
+          ...(detail.prediction?.calibration_volume.expected_total != null
+            ? [
+                {
+                  label: "Expected calibrations · next 3 months",
+                  value: detail.prediction.calibration_volume.expected_total,
+                  unit: "calibration events",
+                  scope: `${detail.prediction.calibration_volume.window_start} through ${detail.prediction.calibration_volume.window_end}`,
+                  definition:
+                    "Validated model/baseline quarter-total outlook. No monthly customer prediction or uncertainty interval is supplied.",
+                },
+              ]
+            : []),
         ]
-      : page === "customers" && detail
-        ? [
-            {
-              label: "Recorded requirement records",
-              value: detail.requirements.filter((r) => r.kind === "recorded")
-                .length,
-              unit: "instruments",
-              scope: detail.profile.display_name,
-              definition:
-                "Recorded requirement evidence; examine window and eligibility before outreach.",
-            },
-            ...(detail.prediction?.calibration_volume.expected_total != null
-              ? [
-                  {
-                    label: "Expected calibrations · next 3 months",
-                    value: detail.prediction.calibration_volume.expected_total,
-                    unit: "calibration events",
-                    scope: `${detail.prediction.calibration_volume.window_start} through ${detail.prediction.calibration_volume.window_end}`,
-                    definition:
-                      "Validated model/baseline quarter-total outlook. No monthly customer prediction or uncertainty interval is supplied.",
-                  },
-                ]
-              : []),
-          ]
-        : [];
+      : [];
   return {
     page,
     title:
-      page === "dashboard"
-        ? "Your next conversation"
-        : page === "customers"
-          ? detail?.profile.display_name || "Customer workspace"
+      page === "customers"
+        ? detail?.profile.display_name || "Customer workspace"
+        : page === "insights"
+          ? "Insights"
           : "Follow-ups",
     metrics,
   };
@@ -196,7 +177,10 @@ export function IntegratedWorkspace() {
       setPending(false);
     }
   };
-  if (pathname === "/follow-ups")
+  if (
+    pathname === "/follow-ups" ||
+    (pathname === "/customers" && s.customerView === "follow-ups")
+  )
     return (
       <>
         <Heading
@@ -204,6 +188,7 @@ export function IntegratedWorkspace() {
           text="Agreed follow-ups, persisted locally and separate from the SQL source."
         />
         <Card>
+          <CustomerViews />
           <h2>Follow-ups</h2>
           {s.data.followups.length === 0 ? (
             <p>No follow-ups yet. Open a customer and record the next step.</p>
@@ -258,6 +243,7 @@ export function IntegratedWorkspace() {
           title="Customers"
           text="Explore actual history, model support and evidence before taking action."
         />
+        <CustomerViews />
         <div className="filters integrated-filters">
           <label>
             Industry
@@ -396,98 +382,12 @@ export function IntegratedWorkspace() {
         </div>
       </>
     );
+  if (pathname !== "/insights") return <OpportunityDashboard />;
   const sectors = boot.sectors;
   const corr = sectors?.correlation;
   return (
     <>
-      <Heading
-        title="Dashboard"
-        text="A ranked shortlist supported by historical evidence and explicit unknowns."
-      />
-      <div className="metrics">
-        <Metric
-          label="Customers to review"
-          value={boot.kpis.customers.value}
-          caption="All snapshot accounts"
-        />
-        <Metric
-          label="Recorded requirement records"
-          value={boot.kpis.requirements_by_kind.recorded || 0}
-          caption="All recorded dates · eligibility varies"
-        />
-        <Metric
-          label="Inferred requirement records"
-          value={
-            (boot.kpis.requirements_by_kind.nominal_interval || 0) +
-            (boot.kpis.requirements_by_kind.repeat_history || 0)
-          }
-          caption="Nominal interval or repeated history"
-        />
-        <Metric
-          label="Open follow-ups"
-          value={boot.kpis.open_followups.value}
-          caption="Local workflow store"
-        />
-      </div>
-      <Card>
-        <div className="card-heading">
-          <div>
-            <h2>Good reasons to reach out</h2>
-            <p>
-              Quantity and evidence priority · review required before outreach
-            </p>
-          </div>
-          <button
-            className="button"
-            onClick={() => s.set({ requestedPage: "customers" })}
-          >
-            View all accounts →
-          </button>
-        </div>
-        {boot.actions.length === 0 ? (
-          <p>No supported actions in this snapshot.</p>
-        ) : (
-          <div className="integrated-table">
-            <table>
-              <thead>
-                <tr>
-                  <th>Customer</th>
-                  <th>Why now</th>
-                  <th>Priority</th>
-                  <th>Readiness</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {boot.actions.slice(0, s.actionLimit).map((action) => (
-                  <tr key={action.customer_id}>
-                    <td>
-                      {s.v2List?.items.find(
-                        (c) => c.profile.customer_id === action.customer_id,
-                      )?.profile.display_name ||
-                        `Account ${action.customer_id.slice(0, 8)}`}
-                    </td>
-                    <td>
-                      {action.reasons[0]?.title}
-                      <small>{action.suggested_next_step}</small>
-                    </td>
-                    <td>{count(action.priority_score)}/100</td>
-                    <td>{action.readiness.replaceAll("_", " ")}</td>
-                    <td>
-                      <button
-                        className="button"
-                        onClick={() => openCustomer(action.customer_id)}
-                      >
-                        Review
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
+      <Heading title="Insights" text="Sector activity and model quality" />
       <div className="integrated-charts">
         <Card>
           <h2>Sector activity</h2>
@@ -681,7 +581,7 @@ function Metric({
     </div>
   );
 }
-function CustomerEvidence({
+export function CustomerEvidence({
   detail: d,
   pending,
   onWorkflow,
@@ -944,15 +844,25 @@ function CustomerEvidence({
           </Card>
           <Card>
             <h2>Requirement evidence</h2>
+            <small>
+              Showing up to 50 of {d.requirements.length} loaded records. Full
+              tier counts cover all source requirements; evidence is loaded with
+              a bounded record limit.
+            </small>
             <p>
-              {d.requirements.length} instrument records ·{" "}
-              {d.requirements.filter((r) => r.kind === "unknown").length} with
-              unknown dates ·{" "}
+              {Object.values(d.requirement_tier_counts || {}).reduce(
+                (a, b) => a + b,
+                0,
+              ) || d.requirements.length}{" "}
+              instrument records ·{" "}
+              {d.requirement_tier_counts?.unknown ??
+                d.requirements.filter((r) => r.kind === "unknown").length}{" "}
+              with unknown dates ·{" "}
               {
                 d.requirements.filter((r) => r.eligibility === "excluded")
                   .length
               }{" "}
-              excluded.
+              excluded in the loaded evidence.
             </p>
             <div className="integrated-table">
               <table>
@@ -979,7 +889,7 @@ function CustomerEvidence({
             </div>
             {d.requirements.length > 50 && (
               <small>
-                Showing first 50 records; all counts use the full account.
+                Showing first 50 loaded records; source tier counts cover the full account.
               </small>
             )}
           </Card>
@@ -1016,6 +926,30 @@ function CustomerEvidence({
               complete evidence pack.
             </p>
             <p>{d.preparation.suggested_next_step}</p>
+            <form
+              className="integrated-form"
+              key={d.profile.customer_id + (d.workflow.account_owner || "")}
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const owner = String(
+                  new FormData(e.currentTarget).get("account_owner") || "",
+                ).trim();
+                await onWorkflow({ account_owner: owner || null });
+              }}
+            >
+              <label>
+                Account action owner
+                <input
+                  name="account_owner"
+                  maxLength={100}
+                  defaultValue={d.workflow.account_owner || ""}
+                  placeholder="Assign a teammate"
+                />
+              </label>
+              <button className="button" disabled={pending}>
+                Save owner
+              </button>
+            </form>
             <label>
               Quotation/order check
               <select
@@ -1109,5 +1043,29 @@ function CustomerEvidence({
         </>
       )}
     </>
+  );
+}
+
+function CustomerViews() {
+  const s = useSalesStore();
+  return (
+    <div className="customer-tabs" aria-label="Customer workspace view">
+      <button
+        aria-pressed={s.customerView === "accounts"}
+        onClick={() =>
+          s.set({ customerView: "accounts", requestedPage: "customers" })
+        }
+      >
+        Accounts
+      </button>
+      <button
+        aria-pressed={s.customerView === "follow-ups"}
+        onClick={() =>
+          s.set({ customerView: "follow-ups", requestedPage: "customers" })
+        }
+      >
+        Follow-ups
+      </button>
+    </div>
   );
 }

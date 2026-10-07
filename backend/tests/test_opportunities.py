@@ -25,7 +25,7 @@ class OpportunityTests(unittest.TestCase):
         return res.json()
 
     def test_sample_and_pagination_never_change_totals(self):
-        all_rows = self.get(display_limit=0, limit=100)
+        all_rows = self.get(display_limit=0, limit=100, window_days=90)
         sample = self.get(display_limit=1, limit=1)
         self.assertEqual(sample['metrics'], all_rows['metrics'])
         self.assertEqual(sample['selected_count'], all_rows['selected_count'])
@@ -78,3 +78,39 @@ class OpportunityTests(unittest.TestCase):
         self.assertEqual(coordinates({'due_quantity':None,'activity_gap':None,'discovery_scale':None,'urgency':None},model['anchors']), (None,None,None))
 
 if __name__ == '__main__': unittest.main()
+
+class OpportunityAgentTests(OpportunityTests):
+    def runtime(self):
+        from types import SimpleNamespace
+        from backend.app.agents.contracts import WorkspaceContext, TurnContext
+        return SimpleNamespace(context=TurnContext(WorkspaceContext(snapshot_id='synthetic-v1',page='dashboard')))
+
+    def test_agent_selection_filters_and_totals_use_same_cohort(self):
+        from backend.app.capabilities.workspace.tools import set_opportunity_filters, select_opportunity_cluster, get_opportunity_cohort
+        runtime = self.runtime()
+        set_opportunity_filters.func(runtime,industry='IND-AUTOMOTIVE')
+        result = get_opportunity_cohort.func(runtime)
+        self.assertEqual(result['selected_count'], 1)
+        self.assertEqual(result['filters']['industry'], 'IND-AUTOMOTIVE')
+        self.assertEqual([e['type'] for e in runtime.context.events], ['opportunities.filters.set','ui.navigate'])
+        cluster = result['items'][0]['cluster_id']
+        if cluster:
+            select_opportunity_cluster.func(cluster_id=cluster,runtime=runtime)
+            self.assertEqual(get_opportunity_cohort.func(runtime)['selected_count'],1)
+        count = len(runtime.context.events)
+        with self.assertRaises(ValueError): set_opportunity_filters.func(runtime,group='unknown-category')
+        self.assertEqual(len(runtime.context.events),count)
+
+    def test_sector_chart_tools_preserve_null_correlation_cells(self):
+        from backend.app.capabilities.workspace.tools import create_chart
+        from backend.app.api import v2
+        sectors = {'history':[{'industry_id':'I','label':'Industry','monthly':[{'month':'2026-08','calibration_events':4}]}],
+            'forecasts':[{'industry_id':'I','forecast_month':'2026-09','expected':5}],
+            'correlation':{'labels':['A','B'],'values':[[1,None],[None,1]],'window_start':'2024-01','window_end':'2026-08'}}
+        with patch.object(v2,'sectors',return_value={'sectors':sectors}):
+            for view in ('sector_activity','sector_outlook','sector_correlation'):
+                result=create_chart.func(view=view,runtime=self.runtime())
+                self.assertEqual(result['event']['type'],'artifact.created')
+            heat=create_chart.func(view='sector_correlation',runtime=self.runtime())['event']['payload']
+            self.assertEqual(heat['kind'],'heatmap')
+            self.assertIsNone(heat['datasets'][0]['values'][1])
