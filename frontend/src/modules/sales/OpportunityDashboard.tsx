@@ -7,6 +7,7 @@ import { Chart, ArtifactChart } from "@/modules/artifacts/Chart";
 import { useSalesStore } from "./store";
 import { request, getV2Detail, getV2Followups, patchV2Workflow } from "./api";
 import { CustomerEvidence } from "./IntegratedWorkspace";
+import { mapPosition, opportunityRegions } from "./opportunity-regions";
 import type {
   OpportunityFilters,
   OpportunityPoint,
@@ -237,16 +238,16 @@ export function OpportunityDashboard() {
             if (p.cluster) return `${p.groupLabel}\nClick to select this group`;
             const c = p.point;
             return c
-              ? `${c.display_name}\n${c.industry_label} · ${c.segment_label || "Unassigned segment"}\nUrgency ${format(c.urgency_score)} · size ${format(c.size_score)}\n${c.size_basis?.replaceAll("_", " ")}\n${c.due_recorded + c.due_inferred} due instruments\nClick to prepare conversation`
+              ? `${c.display_name}\n${c.industry_label} · ${c.segment_label || "Unassigned segment"}\nUrgency percentile ${format(c.urgency_score)} · size percentile ${format(c.size_score)}\n${c.size_basis?.replaceAll("_", " ")}\n${c.due_recorded + c.due_inferred} due instruments\nClick to prepare conversation`
               : "";
           },
         },
         grid: { left: 58, right: 32, top: 32, bottom: 70 },
         xAxis: {
           type: "value",
-          min: 0,
-          max: 105,
-          name: "Action urgency →",
+          min: -100,
+          max: 100,
+          name: "Relative action urgency →",
           nameLocation: "middle",
           nameGap: 40,
           splitLine: { lineStyle: { color: "#e9eee5" } },
@@ -254,9 +255,9 @@ export function OpportunityDashboard() {
         },
         yAxis: {
           type: "value",
-          min: 0,
-          max: 105,
-          name: "Opportunity size",
+          min: -100,
+          max: 100,
+          name: "Relative opportunity size",
           nameGap: 14,
           splitLine: { lineStyle: { color: "#e9eee5" } },
           axisLine: { show: false },
@@ -266,6 +267,38 @@ export function OpportunityDashboard() {
           { type: "inside", yAxisIndex: 0 },
         ],
         series: [
+          ...opportunityRegions(data.clusters).map((c) => ({
+            name: `${c.label} region`,
+            type: "custom" as const,
+            clip: true,
+            z: 0,
+            renderItem: (
+              _params: unknown,
+              api: { coord: (p: number[]) => number[] },
+            ) => ({
+              type: "polygon" as const,
+              shape: {
+                points: c.polygon.map((p) => api.coord(p.map(mapPosition))),
+              },
+              style: {
+                fill: c.color,
+                opacity: !data.selected_cluster
+                  ? 0.09
+                  : data.selected_cluster === c.id
+                    ? 0.18
+                    : 0.025,
+                stroke: c.color,
+                lineWidth: data.selected_cluster === c.id ? 2 : 1,
+              },
+            }),
+            data: [
+              {
+                value: [mapPosition(c.urgency), mapPosition(c.size)],
+                cluster: c.id,
+                groupLabel: c.label,
+              },
+            ],
+          })),
           ...data.clusters.map((c) => ({
             name: c.label,
             type: "scatter" as const,
@@ -281,25 +314,28 @@ export function OpportunityDashboard() {
             data: data.points
               .filter((p) => p.cluster_id === c.id)
               .map((p) => ({
-                value: [p.urgency_score, p.size_score],
+                value: [
+                  mapPosition(p.urgency_score!),
+                  mapPosition(p.size_score!),
+                ],
                 point: p,
               })),
           })),
           {
             name: "Group centers",
             type: "scatter",
-            symbolSize: 54,
+            symbolSize: 4,
             z: 5,
             data: data.clusters
               .filter((c) => c.matching_count > 0)
               .map((c) => ({
-                value: [c.urgency, c.size],
+                value: [mapPosition(c.urgency), mapPosition(c.size)],
                 cluster: c.id,
                 groupLabel: c.label,
                 itemStyle: {
-                  color: c.color + "22",
+                  color: c.color,
                   borderColor: c.color,
-                  borderWidth: data.selected_cluster === c.id ? 4 : 2,
+                  borderWidth: 0,
                 },
                 label: {
                   show: true,
@@ -503,9 +539,11 @@ export function OpportunityDashboard() {
               </label>
             </div>
             <small>
-              Size is a quantity-based score. Axes and group centers use a
-              frozen model per due-window/evidence configuration; market filters
-              do not refit it.
+              Axes are relative percentile positions: 0 is the reference-cohort
+              median, −100 is lower and +100 is higher. Size uses quantities,
+              not profit. Shaded regions follow the frozen model boundaries;
+              filters do not refit them. Identical evidence keeps identical
+              positions.
             </small>
           </Card>
           <div className="metrics opportunity-metrics">

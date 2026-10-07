@@ -11,7 +11,7 @@ from sklearn.cluster import KMeans
 from sklearn.metrics import adjusted_rand_score, silhouette_score
 from threadpoolctl import threadpool_limits
 
-RULE_VERSION = 'opportunity-v1'
+RULE_VERSION = 'opportunity-v2-relative'
 COLORS = ['#638768', '#a092c1', '#db9c65', '#88a8bd']
 LABELS = ['Act now', 'Plan larger opportunities', 'Focused follow-up', 'Nurture and monitor']
 
@@ -54,8 +54,10 @@ def raw_components(reqs, prediction, history_volume, discovery, reference):
     due = recorded + inferred
     urgency = None
     if reqs:
-        nearest = min((date.fromisoformat(r.window_start) - date.fromisoformat(reference)).days for r in reqs)
-        urgency = 100 * max(.25, min(1., 1 - max(0, nearest) / 120))
+        lead_days = [(date.fromisoformat(r.window_start) - date.fromisoformat(reference)).days for r in reqs]
+        imminence = [math.exp(-max(0, days) / 60) for days in lead_days]
+        # Distinguish a whole near-term batch from one early item in a later batch.
+        urgency = 100 * (.6 * max(imminence) + .4 * sum(imminence) / len(imminence))
     inactive = bool(prediction and prediction.inactivity.support.status == 'supported' and prediction.inactivity.flagged)
     gap = None
     if inactive:
@@ -64,14 +66,27 @@ def raw_components(reqs, prediction, history_volume, discovery, reference):
             gap = max(0., sig.baseline_volume - sig.recent_volume)
         measures = [max(0., min(1., sig.deficit_fraction))] if sig.deficit_fraction is not None else []
         if sig.recency_to_cadence is not None:
-            measures.append(max(0., min(1., (sig.recency_to_cadence - 1) / 2)))
+            measures.append(1 - math.exp(-max(0., sig.recency_to_cadence - 1) / 2))
         if measures:
-            urgency = max(urgency or 0., 100 * max(measures))
+            urgency = max(urgency or 0., 100 * sum(measures) / len(measures))
     discovery_scale = float(history_volume) if discovery and history_volume is not None else None
-    if discovery_scale is not None and discovery_scale > 0:
-        urgency = max(urgency or 0., 25.)
+    # Peer discovery establishes a question/quantity basis, not a contact deadline.
+    # Without timing evidence keep the account listed but off the urgency map.
     return dict(due_recorded=recorded, due_inferred=inferred, due_quantity=due if due else None,
                 activity_gap=gap, discovery_scale=discovery_scale, urgency=urgency)
+
+
+def _size_channels(row, anchors):
+    return [(100 * math.log1p(row[key]) / max(anchors[key], .001) * weight, key)
+            for key, weight in [('due_quantity', 1.), ('activity_gap', 1.), ('discovery_scale', .5)]
+            if row[key] is not None]
+
+
+def _percentile_reference(values):
+    # Mid-ranks preserve ties. No random jitter or artificial tie-breaking.
+    unique, counts = np.unique(values, return_counts=True)
+    ranks = (np.cumsum(counts) - counts / 2) / sum(counts) * 100
+    return {'values': unique.tolist(), 'ranks': ranks.tolist()}
 
 
 def normalization(rows):
@@ -79,27 +94,32 @@ def normalization(rows):
     for key in ('due_quantity', 'activity_gap', 'discovery_scale'):
         values = [r[key] for r in rows if r[key] is not None and r[key] > 0]
         result[key] = float(np.percentile(np.log1p(values), 95)) if values else 1.
+    supported = [r for r in rows if r['urgency'] is not None and _size_channels(r, result)]
+    if supported:
+        result['urgency_reference'] = _percentile_reference([r['urgency'] for r in supported])
+        result['size_reference'] = _percentile_reference([max(_size_channels(r, result))[0] for r in supported])
     return result
 
 
 def coordinates(row, anchors):
-    channels = []
-    for key, weight in [('due_quantity', 1.), ('activity_gap', 1.), ('discovery_scale', .5)]:
-        value = row[key]
-        if value is not None:
-            score = min(100., 100 * math.log1p(value) / max(anchors[key], .001)) * weight
-            channels.append((score, key))
+    channels = _size_channels(row, anchors)
     if row['urgency'] is None or not channels:
         return None, None, None
     size, basis = max(channels)
-    return round(row['urgency'], 3), round(size, 3), basis
+    def percentile(value, key):
+        ref = anchors.get(key)
+        return float(np.interp(value, ref['values'], ref['ranks'])) if ref else min(100., value)
+    return (round(percentile(row['urgency'], 'urgency_reference'), 3),
+            round(percentile(size, 'size_reference'), 3), basis)
 
 
 def fit_map(rows):
     anchors = normalization(rows)
     xy = np.array([c[:2] for row in rows if (c := coordinates(row, anchors))[0] is not None])
     # Priority-zone fallback remains useful for sparse or unstable populations.
-    quality = {'sample_count': len(xy), 'silhouette': None, 'seed_agreement': None, 'outlier_agreement': None}
+    quality = {'sample_count': len(xy), 'silhouette': None, 'seed_agreement': None, 'outlier_agreement': None,
+               'axes': 'Frozen reference-cohort mid-rank percentiles; API 0–100, displayed as 2×percentile−100. Zero on the plot is the median. Ties remain equal; positions are not probabilities.',
+               'urgency_basis': '60% nearest due imminence + 40% mean batch imminence, or supported activity deficit/continuous cadence deviation, whichever is stronger.'}
     model = None
     with threadpool_limits(limits=1):
         if len(xy) >= 20 and len(np.unique(xy, axis=0)) >= 4:

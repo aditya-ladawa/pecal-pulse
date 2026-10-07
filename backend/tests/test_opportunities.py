@@ -77,6 +77,35 @@ class OpportunityTests(unittest.TestCase):
         self.assertIsNone(assign(None,None,model))
         self.assertEqual(coordinates({'due_quantity':None,'activity_gap':None,'discovery_scale':None,'urgency':None},model['anchors']), (None,None,None))
 
+class OpportunityNormalizationTests(unittest.TestCase):
+    def test_high_values_do_not_collapse_and_ties_stay_equal(self):
+        from backend.app.capabilities.analytics.opportunities import normalization
+        rows = [dict(due_quantity=q, activity_gap=None, discovery_scale=None, urgency=u)
+                for q, u in [(1, 20), (2, 40), (5, 60), (20, 80), (200, 90), (2000, 95), (2000, 95)]]
+        anchors = normalization(rows)
+        xy = [coordinates(r, anchors) for r in rows]
+        self.assertLess(xy[4][1], xy[5][1])
+        self.assertLess(xy[4][0], xy[5][0])
+        self.assertEqual(xy[5], xy[6])
+        self.assertTrue(all(0 <= x <= 100 and 0 <= y <= 100 for x, y, _ in xy))
+
+    def test_longer_silence_is_distinguished_without_churn_claim(self):
+        from types import SimpleNamespace
+        from backend.app.capabilities.analytics.opportunities import raw_components
+        def raw(ratio):
+            inactivity = SimpleNamespace(support=SimpleNamespace(status='supported'), flagged=True,
+                baseline_volume=20, recent_volume=0, deficit_fraction=1, recency_to_cadence=ratio)
+            return raw_components([], SimpleNamespace(inactivity=inactivity), None, False, '2026-08-31')
+        self.assertLess(raw(3)['urgency'], raw(8)['urgency'])
+        self.assertLess(raw(8)['urgency'], 100)
+
+    def test_discovery_alone_does_not_invent_urgency(self):
+        from backend.app.capabilities.analytics.opportunities import raw_components, normalization
+        raw = raw_components([], None, 100, True, '2026-08-31')
+        self.assertEqual(raw['discovery_scale'], 100)
+        self.assertIsNone(raw['urgency'])
+        self.assertEqual(coordinates(raw, normalization([raw])), (None, None, None))
+
 if __name__ == '__main__': unittest.main()
 
 class OpportunityAgentTests(OpportunityTests):
