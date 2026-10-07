@@ -9,7 +9,7 @@ functional; the mock UI is untouched.
 import os
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import TypeAdapter
 
 from ..capabilities import data
@@ -329,6 +329,11 @@ def update_workflow(
     if patch.suppression is not None and patch.suppression.reason_id not in known:
         raise HTTPException(404, "Unknown reason id")
     workflow = data.get_workflow(customer_id)
+    if "account_owner" in patch.model_fields_set:
+        from ..capabilities.data.workflow import update_owner
+        if patch.account_owner is not None and not patch.account_owner.strip():
+            raise HTTPException(422, "Owner must not be blank")
+        workflow = update_owner(customer_id, patch.account_owner.strip() if patch.account_owner else None)
     if patch.checks is not None:
         workflow = data.update_checks(customer_id, patch.checks)
     if patch.suppression is not None:
@@ -347,3 +352,24 @@ def update_workflow(
         },
         "backend",
     )
+
+
+@router.get("/opportunities")
+def opportunities(snapshot_id: str = DEFAULT_SNAPSHOT, industry: str = "all", segment: str = "all", group: str = "all",
+    purpose: Literal["all", "upcoming", "inactivity", "discovery"] = "all", window_days: Literal[30,60,90] = 90,
+    include_inferred: bool = True, include_past_due: bool = False, cluster_id: str | None = None,
+    display_limit: int = Query(default=500, ge=0, le=10000), limit: int = Query(default=10, ge=1, le=100),
+    offset: int = Query(default=0, ge=0), unit_contribution: float | None = Query(default=None, ge=0, le=100000),
+    assumption_source: str = Query(default="", max_length=150)):
+    from ..contracts.opportunities import OpportunityFilters, ScenarioAssumptions
+    from ..capabilities.data.opportunities import compose
+    _require_snapshot(snapshot_id)
+    if unit_contribution is not None and not assumption_source.strip():
+        raise HTTPException(422, "Supply the source of your contribution assumption")
+    scenario = ScenarioAssumptions(unit_contribution=unit_contribution, source=assumption_source.strip()) if unit_contribution is not None else None
+    try:
+        return compose(snapshot_id, _metadata(snapshot_id), OpportunityFilters(industry=industry, segment=segment,
+            group=group, purpose=purpose, window_days=window_days, include_inferred=include_inferred,
+            include_past_due=include_past_due), cluster_id, display_limit, limit, offset, scenario).model_dump()
+    except ValueError as exc:
+        raise HTTPException(422, str(exc))

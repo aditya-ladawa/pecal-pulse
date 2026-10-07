@@ -203,3 +203,29 @@ def list_followups_v2() -> list[v2.Followup]:
         except ValueError:
             continue  # skip legacy rows that predate the v2 schema
     return items
+
+
+def list_workflows() -> dict[str, v2.AccountWorkflow]:
+    """Bulk read for cohort composition; no per-account database connections."""
+    with _connection() as conn:
+        states = {row['customer_id']: json.loads(row['payload']) for row in conn.execute('SELECT customer_id,payload FROM workflow_state')}
+        for state in states.values():
+            state['followups'] = []
+        for row in conn.execute('SELECT payload FROM followups'):
+            payload = json.loads(row['payload'])
+            try:
+                task = v2.Followup.model_validate(payload)
+            except ValueError:
+                continue
+            state = states.setdefault(task.customer_id, _blank_workflow())
+            state.setdefault('followups', []).append(task.model_dump())
+    return {cid: v2.AccountWorkflow.model_validate({k: v for k, v in state.items() if k != 'audit'}) for cid, state in states.items()}
+
+
+def update_owner(customer_id: str, owner: str | None) -> v2.AccountWorkflow:
+    with _connection() as conn:
+        state = _load_state(conn, customer_id)
+        state['account_owner'] = owner
+        state['audit'].append({'at': _now(), 'change': {'account_owner': owner}})
+        _save_state(conn, customer_id, state)
+    return get_workflow(customer_id)

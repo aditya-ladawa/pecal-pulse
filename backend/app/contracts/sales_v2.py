@@ -395,13 +395,14 @@ class WorkflowPatchChecks(StrictModel):
 
 
 class WorkflowPatch(StrictModel):
+    account_owner: str | None = Field(default=None, min_length=1, max_length=100)
     checks: WorkflowPatchChecks | None = None
     suppression: SuppressionRecord | None = None
 
     @model_validator(mode="after")
     def at_least_one_change(self):
-        if self.checks is None and self.suppression is None:
-            raise ValueError("provide checks and/or one suppression record")
+        if self.checks is None and self.suppression is None and "account_owner" not in self.model_fields_set:
+            raise ValueError("provide owner, checks and/or one suppression record")
         return self
 
 
