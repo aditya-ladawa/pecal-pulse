@@ -1,0 +1,64 @@
+.venv/
+__pycache__/
+*.pyc
+frontend/node_modules/
+frontend/.next/
+frontend/*.tsbuildinfo
+.env
+.env.*
+!.env.example
+data/runtime/
+*.log
+analysis/mr7/instruments.json
+analysis/mr7/calibration_events.json
+analysis/mr7/service_key_sample.json
+
+# Local lint cache
+.ruff_cache/
+
+# Extracted/pseudonymous customer data and model outputs
+analysis/customers/
+
+# Proprietary source data, schemas, research, reports and internal handovers.
+# These remain available privately on the development machine.
+AGENTS.md
+context.md
+plan.md
+integration-audit.md
+chl_media/
+docs/
+analysis/customers/
+analysis/mr7/
+analysis/*.sql
+analysis/*.txt
+analysis/*_results.json
+analysis/export_*.py
+analysis/source_connection.py
+analysis/build_customer_page.py
+analysis/build_mr7_page.py
+analysis/customer_dashboard_template.html
+analysis/mr7_planner_template.html
+analysis/horizon_feasibility.py
+analysis/ml_benchmark.py
+analysis/ml_probe.py
+analysis/train_capacity_models.py
+analysis/train_customer_models.py
+analysis/**/README.md
+backend/app/**/README.md
+challenge1_mr7.html
+challenge2_customers.html
+# Prevent accidental upload of databases, schema dumps and archives.
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.sqlite3-*
+*.sql
+*.bak
+*.dump
+*.zip
+*.7z
+*.tar
+*.tar.gz
+*.csv
+*.parquet

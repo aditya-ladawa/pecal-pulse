@@ -1,0 +1,1094 @@
+{
+  "mode": "mock",
+  "reference_date": "2026-09-30",
+  "demo_today": "2026-10-07",
+  "customers": [
+    {
+      "id": "DEMO-1001",
+      "name": "Nordwerk Precision",
+      "industry": "Manufacturing",
+      "segment": "Frequent",
+      "action": "upcoming",
+      "initials": "NP",
+      "priority": 9.6,
+      "return_probability": 0.9,
+      "recency_months": 0,
+      "cadence_months": 1,
+      "recorded_due": 28,
+      "inferred_due": 7,
+      "unknown_dates": 2,
+      "stopped": 0,
+      "reason": "28 instruments approaching their calibration window. Confirm timing and batch size.",
+      "window": "Next 30 days",
+      "groups": [
+        {
+          "name": "Gauge blocks",
+          "instruments": 11
+        },
+        {
+          "name": "Calipers",
+          "instruments": 8
+        },
+        {
+          "name": "Thread gauges",
+          "instruments": 9
+        }
+      ],
+      "months": [
+        "2025-10",
+        "2025-11",
+        "2025-12",
+        "2026-01",
+        "2026-02",
+        "2026-03",
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07",
+        "2026-08",
+        "2026-09",
+        "2026-10",
+        "2026-11",
+        "2026-12"
+      ],
+      "activity": [
+        9,
+        12,
+        12,
+        9,
+        6,
+        7,
+        10,
+        13,
+        11,
+        8,
+        6,
+        8
+      ],
+      "forecast": [
+        13,
+        18,
+        14
+      ],
+      "forecast_low": [
+        7,
+        10,
+        6
+      ],
+      "forecast_high": [
+        20,
+        27,
+        22
+      ],
+      "peer_opportunity": {
+        "group": "Torque tools",
+        "peer_prevalence": 0.46,
+        "peer_count": 128
+      },
+      "owner": "Hanna Weber"
+    },
+    {
+      "id": "DEMO-1002",
+      "name": "Helios Automotive",
+      "industry": "Automotive",
+      "segment": "Frequent",
+      "action": "inactivity",
+      "initials": "HA",
+      "priority": 9.2,
+      "return_probability": 0.43,
+      "recency_months": 3,
+      "cadence_months": 1,
+      "recorded_due": 0,
+      "inferred_due": 10,
+      "unknown_dates": 3,
+      "stopped": 1,
+      "reason": "No calibration recorded in the last three months. Check whether the usual batch has been delayed.",
+      "window": "Review this week",
+      "groups": [
+        {
+          "name": "Gauge blocks",
+          "instruments": 17
+        },
+        {
+          "name": "Calipers",
+          "instruments": 13
+        },
+        {
+          "name": "Thread gauges",
+          "instruments": 12
+        }
+      ],
+      "months": [
+        "2025-10",
+        "2025-11",
+        "2025-12",
+        "2026-01",
+        "2026-02",
+        "2026-03",
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07",
+        "2026-08",
+        "2026-09",
+        "2026-10",
+        "2026-11",
+        "2026-12"
+      ],
+      "activity": [
+        18,
+        18,
+        13,
+        9,
+        11,
+        16,
+        19,
+        17,
+        12,
+        0,
+        0,
+        0
+      ],
+      "forecast": [
+        19,
+        27,
+        21
+      ],
+      "forecast_low": [
+        10,
+        15,
+        8
+      ],
+      "forecast_high": [
+        29,
+        40,
+        34
+      ],
+      "peer_opportunity": {
+        "group": "Torque tools",
+        "peer_prevalence": 0.46,
+        "peer_count": 128
+      },
+      "owner": "Alex Meyer"
+    },
+    {
+      "id": "DEMO-1003",
+      "name": "Voltix Controls",
+      "industry": "Electronics",
+      "segment": "Intermittent",
+      "action": "discovery",
+      "initials": "VC",
+      "priority": 8.9,
+      "return_probability": 0.85,
+      "recency_months": 0,
+      "cadence_months": 3,
+      "recorded_due": 0,
+      "inferred_due": 4,
+      "unknown_dates": 4,
+      "stopped": 0,
+      "reason": "Industry peers often calibrate torque tools. Ask whether that equipment group is relevant.",
+      "window": "Review this week",
+      "groups": [
+        {
+          "name": "Gauge blocks",
+          "instruments": 7
+        },
+        {
+          "name": "Calipers",
+          "instruments": 5
+        },
+        {
+          "name": "Thread gauges",
+          "instruments": 6
+        }
+      ],
+      "months": [
+        "2025-10",
+        "2025-11",
+        "2025-12",
+        "2026-01",
+        "2026-02",
+        "2026-03",
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07",
+        "2026-08",
+        "2026-09",
+        "2026-10",
+        "2026-11",
+        "2026-12"
+      ],
+      "activity": [
+        8,
+        6,
+        4,
+        5,
+        7,
+        8,
+        7,
+        5,
+        4,
+        5,
+        7,
+        8
+      ],
+      "forecast": [
+        8,
+        12,
+        9
+      ],
+      "forecast_low": [
+        4,
+        6,
+        4
+      ],
+      "forecast_high": [
+        13,
+        17,
+        14
+      ],
+      "peer_opportunity": {
+        "group": "Torque tools",
+        "peer_prevalence": 0.46,
+        "peer_count": 128
+      },
+      "owner": "Alex Meyer"
+    },
+    {
+      "id": "DEMO-1004",
+      "name": "MedicaLab Systems",
+      "industry": "Medical",
+      "segment": "Frequent",
+      "action": "upcoming",
+      "initials": "MS",
+      "priority": 8.6,
+      "return_probability": 0.82,
+      "recency_months": 0,
+      "cadence_months": 1,
+      "recorded_due": 22,
+      "inferred_due": 5,
+      "unknown_dates": 2,
+      "stopped": 1,
+      "reason": "22 instruments approaching their calibration window. Confirm timing and batch size.",
+      "window": "Next 30 days",
+      "groups": [
+        {
+          "name": "Gauge blocks",
+          "instruments": 9
+        },
+        {
+          "name": "Calipers",
+          "instruments": 7
+        },
+        {
+          "name": "Thread gauges",
+          "instruments": 6
+        }
+      ],
+      "months": [
+        "2025-10",
+        "2025-11",
+        "2025-12",
+        "2026-01",
+        "2026-02",
+        "2026-03",
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07",
+        "2026-08",
+        "2026-09",
+        "2026-10",
+        "2026-11",
+        "2026-12"
+      ],
+      "activity": [
+        7,
+        5,
+        6,
+        8,
+        10,
+        9,
+        6,
+        5,
+        6,
+        9,
+        10,
+        8
+      ],
+      "forecast": [
+        10,
+        14,
+        11
+      ],
+      "forecast_low": [
+        6,
+        8,
+        4
+      ],
+      "forecast_high": [
+        15,
+        21,
+        18
+      ],
+      "peer_opportunity": {
+        "group": "Torque tools",
+        "peer_prevalence": 0.46,
+        "peer_count": 128
+      },
+      "owner": "Hanna Weber"
+    },
+    {
+      "id": "DEMO-1005",
+      "name": "Atlas Machinery",
+      "industry": "Manufacturing",
+      "segment": "Intermittent",
+      "action": "upcoming",
+      "initials": "AM",
+      "priority": 8.2,
+      "return_probability": 0.8,
+      "recency_months": 0,
+      "cadence_months": 3,
+      "recorded_due": 35,
+      "inferred_due": 8,
+      "unknown_dates": 3,
+      "stopped": 0,
+      "reason": "35 instruments approaching their calibration window. Confirm timing and batch size.",
+      "window": "Next 30 days",
+      "groups": [
+        {
+          "name": "Gauge blocks",
+          "instruments": 14
+        },
+        {
+          "name": "Calipers",
+          "instruments": 10
+        },
+        {
+          "name": "Thread gauges",
+          "instruments": 11
+        }
+      ],
+      "months": [
+        "2025-10",
+        "2025-11",
+        "2025-12",
+        "2026-01",
+        "2026-02",
+        "2026-03",
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07",
+        "2026-08",
+        "2026-09",
+        "2026-10",
+        "2026-11",
+        "2026-12"
+      ],
+      "activity": [
+        8,
+        9,
+        13,
+        16,
+        14,
+        10,
+        8,
+        10,
+        14,
+        16,
+        13,
+        9
+      ],
+      "forecast": [
+        16,
+        23,
+        18
+      ],
+      "forecast_low": [
+        9,
+        12,
+        7
+      ],
+      "forecast_high": [
+        24,
+        33,
+        28
+      ],
+      "peer_opportunity": {
+        "group": "Torque tools",
+        "peer_prevalence": 0.46,
+        "peer_count": 128
+      },
+      "owner": "Alex Meyer"
+    },
+    {
+      "id": "DEMO-1006",
+      "name": "Aeroform Components",
+      "industry": "Aerospace",
+      "segment": "Intermittent",
+      "action": "inactivity",
+      "initials": "AC",
+      "priority": 7.8,
+      "return_probability": 0.47,
+      "recency_months": 3,
+      "cadence_months": 3,
+      "recorded_due": 0,
+      "inferred_due": 4,
+      "unknown_dates": 4,
+      "stopped": 1,
+      "reason": "No calibration recorded in the last three months. Check whether the usual batch has been delayed.",
+      "window": "Review this week",
+      "groups": [
+        {
+          "name": "Gauge blocks",
+          "instruments": 6
+        },
+        {
+          "name": "Calipers",
+          "instruments": 5
+        },
+        {
+          "name": "Thread gauges",
+          "instruments": 5
+        }
+      ],
+      "months": [
+        "2025-10",
+        "2025-11",
+        "2025-12",
+        "2026-01",
+        "2026-02",
+        "2026-03",
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07",
+        "2026-08",
+        "2026-09",
+        "2026-10",
+        "2026-11",
+        "2026-12"
+      ],
+      "activity": [
+        4,
+        6,
+        7,
+        6,
+        4,
+        3,
+        4,
+        6,
+        7,
+        0,
+        0,
+        0
+      ],
+      "forecast": [
+        7,
+        10,
+        8
+      ],
+      "forecast_low": [
+        4,
+        6,
+        3
+      ],
+      "forecast_high": [
+        11,
+        15,
+        13
+      ],
+      "peer_opportunity": {
+        "group": "Torque tools",
+        "peer_prevalence": 0.46,
+        "peer_count": 128
+      },
+      "owner": "Alex Meyer"
+    },
+    {
+      "id": "DEMO-1007",
+      "name": "Novalytica Materials",
+      "industry": "Manufacturing",
+      "segment": "Occasional",
+      "action": "discovery",
+      "initials": "NM",
+      "priority": 7.5,
+      "return_probability": 0.75,
+      "recency_months": 0,
+      "cadence_months": 3,
+      "recorded_due": 0,
+      "inferred_due": 3,
+      "unknown_dates": 2,
+      "stopped": 0,
+      "reason": "Industry peers often calibrate torque tools. Ask whether that equipment group is relevant.",
+      "window": "Review this week",
+      "groups": [
+        {
+          "name": "Gauge blocks",
+          "instruments": 5
+        },
+        {
+          "name": "Calipers",
+          "instruments": 4
+        },
+        {
+          "name": "Thread gauges",
+          "instruments": 3
+        }
+      ],
+      "months": [
+        "2025-10",
+        "2025-11",
+        "2025-12",
+        "2026-01",
+        "2026-02",
+        "2026-03",
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07",
+        "2026-08",
+        "2026-09",
+        "2026-10",
+        "2026-11",
+        "2026-12"
+      ],
+      "activity": [
+        4,
+        0,
+        0,
+        3,
+        0,
+        0,
+        5,
+        0,
+        0,
+        3,
+        0,
+        0
+      ],
+      "forecast": [
+        5,
+        8,
+        6
+      ],
+      "forecast_low": [
+        3,
+        4,
+        2
+      ],
+      "forecast_high": [
+        8,
+        11,
+        10
+      ],
+      "peer_opportunity": {
+        "group": "Torque tools",
+        "peer_prevalence": 0.46,
+        "peer_count": 128
+      },
+      "owner": "Hanna Weber"
+    },
+    {
+      "id": "DEMO-1008",
+      "name": "Lumen Electronics",
+      "industry": "Electronics",
+      "segment": "Frequent",
+      "action": "upcoming",
+      "initials": "LE",
+      "priority": 7.2,
+      "return_probability": 0.72,
+      "recency_months": 0,
+      "cadence_months": 1,
+      "recorded_due": 31,
+      "inferred_due": 7,
+      "unknown_dates": 3,
+      "stopped": 1,
+      "reason": "31 instruments approaching their calibration window. Confirm timing and batch size.",
+      "window": "Next 30 days",
+      "groups": [
+        {
+          "name": "Gauge blocks",
+          "instruments": 12
+        },
+        {
+          "name": "Calipers",
+          "instruments": 9
+        },
+        {
+          "name": "Thread gauges",
+          "instruments": 10
+        }
+      ],
+      "months": [
+        "2025-10",
+        "2025-11",
+        "2025-12",
+        "2026-01",
+        "2026-02",
+        "2026-03",
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07",
+        "2026-08",
+        "2026-09",
+        "2026-10",
+        "2026-11",
+        "2026-12"
+      ],
+      "activity": [
+        14,
+        12,
+        9,
+        7,
+        9,
+        12,
+        14,
+        11,
+        8,
+        7,
+        10,
+        13
+      ],
+      "forecast": [
+        14,
+        20,
+        16
+      ],
+      "forecast_low": [
+        8,
+        11,
+        6
+      ],
+      "forecast_high": [
+        22,
+        29,
+        25
+      ],
+      "peer_opportunity": {
+        "group": "Torque tools",
+        "peer_prevalence": 0.46,
+        "peer_count": 128
+      },
+      "owner": "Alex Meyer"
+    },
+    {
+      "id": "DEMO-1009",
+      "name": "Vela Diagnostics",
+      "industry": "Medical",
+      "segment": "Intermittent",
+      "action": "inactivity",
+      "initials": "VD",
+      "priority": 6.8,
+      "return_probability": 0.5,
+      "recency_months": 3,
+      "cadence_months": 3,
+      "recorded_due": 0,
+      "inferred_due": 3,
+      "unknown_dates": 4,
+      "stopped": 0,
+      "reason": "No calibration recorded in the last three months. Check whether the usual batch has been delayed.",
+      "window": "Review this week",
+      "groups": [
+        {
+          "name": "Gauge blocks",
+          "instruments": 6
+        },
+        {
+          "name": "Calipers",
+          "instruments": 4
+        },
+        {
+          "name": "Thread gauges",
+          "instruments": 4
+        }
+      ],
+      "months": [
+        "2025-10",
+        "2025-11",
+        "2025-12",
+        "2026-01",
+        "2026-02",
+        "2026-03",
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07",
+        "2026-08",
+        "2026-09",
+        "2026-10",
+        "2026-11",
+        "2026-12"
+      ],
+      "activity": [
+        6,
+        4,
+        3,
+        4,
+        6,
+        6,
+        5,
+        4,
+        3,
+        0,
+        0,
+        0
+      ],
+      "forecast": [
+        6,
+        9,
+        7
+      ],
+      "forecast_low": [
+        4,
+        5,
+        3
+      ],
+      "forecast_high": [
+        10,
+        13,
+        11
+      ],
+      "peer_opportunity": {
+        "group": "Torque tools",
+        "peer_prevalence": 0.46,
+        "peer_count": 128
+      },
+      "owner": "Alex Meyer"
+    },
+    {
+      "id": "DEMO-1010",
+      "name": "Kern Mobility",
+      "industry": "Automotive",
+      "segment": "Occasional",
+      "action": "upcoming",
+      "initials": "KM",
+      "priority": 6.4,
+      "return_probability": 0.68,
+      "recency_months": 0,
+      "cadence_months": 3,
+      "recorded_due": 19,
+      "inferred_due": 4,
+      "unknown_dates": 2,
+      "stopped": 1,
+      "reason": "19 instruments approaching their calibration window. Confirm timing and batch size.",
+      "window": "Next 30 days",
+      "groups": [
+        {
+          "name": "Gauge blocks",
+          "instruments": 8
+        },
+        {
+          "name": "Calipers",
+          "instruments": 6
+        },
+        {
+          "name": "Thread gauges",
+          "instruments": 5
+        }
+      ],
+      "months": [
+        "2025-10",
+        "2025-11",
+        "2025-12",
+        "2026-01",
+        "2026-02",
+        "2026-03",
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07",
+        "2026-08",
+        "2026-09",
+        "2026-10",
+        "2026-11",
+        "2026-12"
+      ],
+      "activity": [
+        5,
+        0,
+        0,
+        8,
+        0,
+        0,
+        5,
+        0,
+        0,
+        8,
+        0,
+        0
+      ],
+      "forecast": [
+        9,
+        12,
+        10
+      ],
+      "forecast_low": [
+        5,
+        7,
+        4
+      ],
+      "forecast_high": [
+        13,
+        18,
+        15
+      ],
+      "peer_opportunity": {
+        "group": "Torque tools",
+        "peer_prevalence": 0.46,
+        "peer_count": 128
+      },
+      "owner": "Hanna Weber"
+    },
+    {
+      "id": "DEMO-1011",
+      "name": "Orbit Aerospace",
+      "industry": "Aerospace",
+      "segment": "Frequent",
+      "action": "discovery",
+      "initials": "OA",
+      "priority": 6.1,
+      "return_probability": 0.65,
+      "recency_months": 0,
+      "cadence_months": 1,
+      "recorded_due": 0,
+      "inferred_due": 6,
+      "unknown_dates": 3,
+      "stopped": 0,
+      "reason": "Industry peers often calibrate torque tools. Ask whether that equipment group is relevant.",
+      "window": "Review this week",
+      "groups": [
+        {
+          "name": "Gauge blocks",
+          "instruments": 10
+        },
+        {
+          "name": "Calipers",
+          "instruments": 8
+        },
+        {
+          "name": "Thread gauges",
+          "instruments": 7
+        }
+      ],
+      "months": [
+        "2025-10",
+        "2025-11",
+        "2025-12",
+        "2026-01",
+        "2026-02",
+        "2026-03",
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07",
+        "2026-08",
+        "2026-09",
+        "2026-10",
+        "2026-11",
+        "2026-12"
+      ],
+      "activity": [
+        5,
+        7,
+        10,
+        11,
+        9,
+        6,
+        6,
+        8,
+        11,
+        11,
+        8,
+        6
+      ],
+      "forecast": [
+        11,
+        16,
+        12
+      ],
+      "forecast_low": [
+        6,
+        9,
+        5
+      ],
+      "forecast_high": [
+        18,
+        24,
+        20
+      ],
+      "peer_opportunity": {
+        "group": "Torque tools",
+        "peer_prevalence": 0.46,
+        "peer_count": 128
+      },
+      "owner": "Alex Meyer"
+    },
+    {
+      "id": "DEMO-1012",
+      "name": "Forma Tools",
+      "industry": "Manufacturing",
+      "segment": "Occasional",
+      "action": "upcoming",
+      "initials": "FT",
+      "priority": 5.8,
+      "return_probability": 0.62,
+      "recency_months": 0,
+      "cadence_months": 3,
+      "recorded_due": 9,
+      "inferred_due": 2,
+      "unknown_dates": 4,
+      "stopped": 1,
+      "reason": "9 instruments approaching their calibration window. Confirm timing and batch size.",
+      "window": "Next 30 days",
+      "groups": [
+        {
+          "name": "Gauge blocks",
+          "instruments": 4
+        },
+        {
+          "name": "Calipers",
+          "instruments": 3
+        },
+        {
+          "name": "Thread gauges",
+          "instruments": 2
+        }
+      ],
+      "months": [
+        "2025-10",
+        "2025-11",
+        "2025-12",
+        "2026-01",
+        "2026-02",
+        "2026-03",
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07",
+        "2026-08",
+        "2026-09",
+        "2026-10",
+        "2026-11",
+        "2026-12"
+      ],
+      "activity": [
+        0,
+        0,
+        4,
+        0,
+        0,
+        2,
+        0,
+        0,
+        4,
+        0,
+        0,
+        2
+      ],
+      "forecast": [
+        4,
+        6,
+        4
+      ],
+      "forecast_low": [
+        2,
+        3,
+        2
+      ],
+      "forecast_high": [
+        6,
+        9,
+        7
+      ],
+      "peer_opportunity": {
+        "group": "Torque tools",
+        "peer_prevalence": 0.46,
+        "peer_count": 128
+      },
+      "owner": "Alex Meyer"
+    }
+  ],
+  "sector_labels": [
+    "Manufacturing",
+    "Automotive",
+    "Electronics",
+    "Medical",
+    "Aerospace"
+  ],
+  "sector_correlation": [
+    [
+      1,
+      0.68,
+      0.54,
+      0.19,
+      0.41
+    ],
+    [
+      0.68,
+      1,
+      0.62,
+      0.16,
+      0.48
+    ],
+    [
+      0.54,
+      0.62,
+      1,
+      0.31,
+      0.37
+    ],
+    [
+      0.19,
+      0.16,
+      0.31,
+      1,
+      0.21
+    ],
+    [
+      0.41,
+      0.48,
+      0.37,
+      0.21,
+      1
+    ]
+  ],
+  "followups": [
+    {
+      "id": "task-demo-1",
+      "customer_id": "DEMO-1001",
+      "customer_name": "Nordwerk Precision",
+      "owner": "Alex Meyer",
+      "due_date": "2026-10-07",
+      "note": "Confirm the October calibration batch and preferred return timing.",
+      "outcome": "Timing to confirm",
+      "status": "open",
+      "source": "mock"
+    },
+    {
+      "id": "task-demo-2",
+      "customer_id": "DEMO-1004",
+      "customer_name": "MedicaLab Systems",
+      "owner": "Hanna Weber",
+      "due_date": "2026-10-06",
+      "note": "Prepare the instrument list before the quotation handover.",
+      "outcome": "Need confirmed",
+      "status": "open",
+      "source": "mock"
+    },
+    {
+      "id": "task-demo-3",
+      "customer_id": "DEMO-1008",
+      "customer_name": "Lumen Electronics",
+      "owner": "Alex Meyer",
+      "due_date": "2026-10-09",
+      "note": "Customer requested a call after their inventory review.",
+      "outcome": "Timing changed",
+      "status": "open",
+      "source": "mock"
+    }
+  ]
+}
