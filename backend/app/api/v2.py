@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import TypeAdapter
 
 from ..capabilities import data
+from ..capabilities.analytics.context import for_snapshot as analytics_for_snapshot
 from ..capabilities.sales.models import FollowupUpdate as FollowupStatusUpdate
 from ..contracts import sales_v2 as v2
 from ..realtime.publisher import publish
@@ -29,6 +30,7 @@ def _mode(snapshot_id: str) -> Literal["mock", "historical"]:
 
 def _metadata(snapshot_id: str) -> v2.ResponseMetadata:
     manifest = data.get_manifest(snapshot_id)
+    analytics = analytics_for_snapshot(data.load_snapshot(snapshot_id))
     return v2.ResponseMetadata(
         snapshot_id=snapshot_id,
         reference_date=manifest.reference_date,
@@ -36,13 +38,9 @@ def _metadata(snapshot_id: str) -> v2.ResponseMetadata:
         workflow_today=WORKFLOW_TODAY,
         modules={
             "data": v2.ModuleReadiness(status="ready"),
-            "predictions": v2.ModuleReadiness(
-                status="unavailable", reason="analytics module not merged"
-            ),
+            "predictions": analytics.readiness("predictions"),
             "insights": v2.ModuleReadiness(status="ready"),
-            "sectors": v2.ModuleReadiness(
-                status="unavailable", reason="analytics module not merged"
-            ),
+            "sectors": analytics.readiness("sectors"),
         },
     )
 
@@ -65,6 +63,7 @@ def bootstrap(snapshot_id: str = DEFAULT_SNAPSHOT):
         {(p.industry_id or "unknown", p.industry_label or "Unknown") for p in profiles}
     )
     snapshot = data.load_snapshot(snapshot_id)
+    analytics = analytics_for_snapshot(snapshot)
     by_kind: dict[str, int] = {}
     eligible = 0
     for req in snapshot["requirements"]:
@@ -82,7 +81,10 @@ def bootstrap(snapshot_id: str = DEFAULT_SNAPSHOT):
             "industries": [
                 {"value": value, "label": label} for value, label in industries
             ],
-            "segments": [],
+            "segments": [
+                {"value": s["id"], "label": s["label"]}
+                for s in analytics.payload("segments") or []
+            ],
             "actions": ["upcoming", "inactivity", "discovery"],
         },
         "kpis": {
@@ -94,7 +96,7 @@ def bootstrap(snapshot_id: str = DEFAULT_SNAPSHOT):
         },
         "actions": [a.model_dump() for a in proactive[:10]],
         "due_followups": [f.model_dump() for f in open_followups[:10]],
-        "sectors": None,
+        "sectors": analytics.payload("sectors"),
     }
 
 
@@ -115,8 +117,10 @@ def list_customers(
     if offset < 0:
         raise HTTPException(422, "offset must be >= 0")
     profiles = data.list_customers(snapshot_id)
+    analytics = analytics_for_snapshot(data.load_snapshot(snapshot_id))
     if industry_id:
         profiles = [p for p in profiles if (p.industry_id or "unknown") == industry_id]
+    predictions_by_customer = {p.customer_id: analytics.prediction(p.customer_id) for p in profiles}
     queue = data.ranked_queue(snapshot_id, WORKFLOW_TODAY)
     actions_by_customer = {a.customer_id: a for a in queue}
     if action is not None:
@@ -131,7 +135,9 @@ def list_customers(
             )
         ]
     if segment_id:
-        profiles = []  # no segments published yet; empty match, not an error
+        profiles = [p for p in profiles
+                    if (prediction := predictions_by_customer[p.customer_id]) is not None
+                    and prediction.segment_id == segment_id]
     if query:
         needle = query.lower()
         profiles = [
@@ -157,6 +163,10 @@ def list_customers(
         "items": [
             v2.CustomerSummary(
                 profile=p,
+                segment_id=(predictions_by_customer[p.customer_id].segment_id
+                            if predictions_by_customer[p.customer_id] is not None else None),
+                activity_probability=(predictions_by_customer[p.customer_id].activity.probability
+                                      if predictions_by_customer[p.customer_id] is not None else None),
                 primary_action=actions_by_customer.get(p.customer_id),
                 recency_months=_recency(snapshot_id, p.customer_id),
             ).model_dump()
@@ -177,13 +187,14 @@ def customer_detail(customer_id: str, snapshot_id: str = DEFAULT_SNAPSHOT):
         raise HTTPException(404, f"Unknown customer: {customer_id}")
     manifest = data.get_manifest(snapshot_id)
     action = data.action_for_customer(snapshot_id, customer_id, WORKFLOW_TODAY)
+    prediction = analytics_for_snapshot(data.load_snapshot(snapshot_id)).prediction(customer_id)
     return {
         "metadata": _metadata(snapshot_id).model_dump(),
         "profile": detail["profile"].model_dump(),
         "history": [h.model_dump() for h in detail["history"]],
         "portfolio": [p.model_dump() for p in detail["portfolio"]],
         "requirements": [r.model_dump() for r in detail["requirements"]],
-        "prediction": None,
+        "prediction": prediction.model_dump() if prediction is not None else None,
         "action": action.model_dump() if action is not None else None,
         "peer_opportunities": [
             p.model_dump() for p in data.peers_for_customer(snapshot_id, customer_id)
@@ -198,13 +209,21 @@ def customer_detail(customer_id: str, snapshot_id: str = DEFAULT_SNAPSHOT):
 @router.get("/sectors")
 def sectors(snapshot_id: str = DEFAULT_SNAPSHOT):
     _require_snapshot(snapshot_id)
-    raise HTTPException(503, "Sector data needs the analytics module (not merged)")
+    analytics = analytics_for_snapshot(data.load_snapshot(snapshot_id))
+    if not analytics.available:
+        raise HTTPException(503, analytics.reason)
+    return {"metadata": _metadata(snapshot_id).model_dump(),
+            "sectors": analytics.payload("sectors")}
 
 
 @router.get("/model-report")
 def model_report(snapshot_id: str = DEFAULT_SNAPSHOT):
     _require_snapshot(snapshot_id)
-    raise HTTPException(503, "Model report needs the analytics module (not merged)")
+    analytics = analytics_for_snapshot(data.load_snapshot(snapshot_id))
+    if not analytics.available:
+        raise HTTPException(503, analytics.reason)
+    return {"metadata": _metadata(snapshot_id).model_dump(),
+            "model_report": analytics.payload("model_report")}
 
 
 @router.get("/followups")
