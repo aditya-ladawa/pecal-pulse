@@ -1,0 +1,44 @@
+{
+  "snapshot_id": "synth-2026-08-31",
+  "reference_date": "2026-08-31",
+  "window_start": "2025-09-01",
+  "window_end": "2026-08-31",
+  "notes": "Synthetic Member 3 fixture. Small on purpose: default peer thresholds (20 accounts / 25%) intentionally yield no opportunities here, proving sparse-industry handling. Tests lower thresholds to exercise discovery. IDs are opaque strings; names are identifier-based, not invented companies.",
+  "profiles": [
+    {"customer_id": "C-AUTO-001", "display_name": "C-AUTO-001", "name_source": "identifier", "industry_id": "AUTO", "industry_label": "Automotive"},
+    {"customer_id": "C-AUTO-002", "display_name": "C-AUTO-002", "name_source": "identifier", "industry_id": "AUTO", "industry_label": "Automotive"},
+    {"customer_id": "C-AUTO-003", "display_name": "C-AUTO-003", "name_source": "identifier", "industry_id": "AUTO", "industry_label": "Automotive"},
+    {"customer_id": "C-AUTO-004", "display_name": "C-AUTO-004", "name_source": "identifier", "industry_id": "AUTO", "industry_label": "Automotive"},
+    {"customer_id": "C-MANU-001", "display_name": "C-MANU-001", "name_source": "identifier", "industry_id": "MANU", "industry_label": "Manufacturing"},
+    {"customer_id": "C-UNK-001", "display_name": "C-UNK-001", "name_source": "identifier", "industry_id": "Unknown", "industry_label": "Unknown"}
+  ],
+  "portfolios": [
+    {"customer_id": "C-AUTO-001", "group_id": "G-CALIPER", "group_label": "Calipers", "distinct_instruments": 8, "calibration_events": 20, "window_start": "2025-09-01", "window_end": "2026-08-31"},
+    {"customer_id": "C-AUTO-002", "group_id": "G-CALIPER", "group_label": "Calipers", "distinct_instruments": 5, "calibration_events": 12, "window_start": "2025-09-01", "window_end": "2026-08-31"},
+    {"customer_id": "C-AUTO-002", "group_id": "G-TORQUE", "group_label": "Torque tools", "distinct_instruments": 4, "calibration_events": 9, "window_start": "2025-09-01", "window_end": "2026-08-31"},
+    {"customer_id": "C-AUTO-003", "group_id": "G-CALIPER", "group_label": "Calipers", "distinct_instruments": 6, "calibration_events": 15, "window_start": "2025-09-01", "window_end": "2026-08-31"},
+    {"customer_id": "C-AUTO-003", "group_id": "G-TORQUE", "group_label": "Torque tools", "distinct_instruments": 3, "calibration_events": 6, "window_start": "2025-09-01", "window_end": "2026-08-31"},
+    {"customer_id": "C-AUTO-004", "group_id": "G-CALIPER", "group_label": "Calipers", "distinct_instruments": 2, "calibration_events": 4, "window_start": "2025-09-01", "window_end": "2026-08-31"},
+    {"customer_id": "C-AUTO-004", "group_id": "G-TORQUE", "group_label": "Torque tools", "distinct_instruments": 7, "calibration_events": 18, "window_start": "2025-09-01", "window_end": "2026-08-31"},
+    {"customer_id": "C-MANU-001", "group_id": "G-CALIPER", "group_label": "Calipers", "distinct_instruments": 10, "calibration_events": 30, "window_start": "2025-09-01", "window_end": "2026-08-31"},
+    {"customer_id": "C-UNK-001", "group_id": "G-TORQUE", "group_label": "Torque tools", "distinct_instruments": 5, "calibration_events": 11, "window_start": "2025-09-01", "window_end": "2026-08-31"}
+  ],
+  "group_labels": {"G-CALIPER": "Calipers", "G-TORQUE": "Torque tools"},
+  "requirements": [
+    {"id": "R-001", "customer_id": "C-AUTO-001", "instrument_id": "I-001", "group_id": "G-CALIPER", "kind": "recorded", "window_start": "2026-09-05", "window_end": "2026-09-25", "method": "recorded due date", "evidence_dates": ["2025-09-10"], "positive_gap_count": 0, "stopped": false, "eligibility": "eligible", "unknowns": []},
+    {"id": "R-002", "customer_id": "C-AUTO-001", "instrument_id": "I-002", "group_id": "G-CALIPER", "kind": "recorded", "window_start": "2026-09-05", "window_end": "2026-09-25", "method": "recorded due date", "evidence_dates": ["2025-09-11"], "positive_gap_count": 0, "stopped": false, "eligibility": "eligible", "unknowns": []},
+    {"id": "R-003", "customer_id": "C-AUTO-001", "instrument_id": "I-003", "group_id": "G-CALIPER", "kind": "repeat_history", "window_start": "2026-10-01", "window_end": "2026-10-31", "method": "median of 3 positive gaps", "evidence_dates": ["2024-01-05", "2025-01-06", "2026-01-05"], "positive_gap_count": 3, "stopped": false, "eligibility": "review_required", "unknowns": ["interval spread observed"]},
+    {"id": "R-004", "customer_id": "C-AUTO-002", "instrument_id": "I-010", "group_id": "G-CALIPER", "kind": "recorded", "window_start": "2026-09-02", "window_end": "2026-09-20", "method": "recorded due date", "evidence_dates": ["2025-09-02"], "positive_gap_count": 0, "stopped": true, "eligibility": "eligible", "unknowns": []},
+    {"id": "R-005", "customer_id": "C-AUTO-002", "instrument_id": "I-011", "group_id": "G-CALIPER", "kind": "unknown", "window_start": null, "window_end": null, "method": "", "evidence_dates": [], "positive_gap_count": 0, "stopped": null, "eligibility": "review_required", "unknowns": ["no usable interval or history"]}
+  ],
+  "predictions": [
+    {"snapshot_id": "synth-2026-08-31", "customer_id": "C-AUTO-001", "reference_date": "2026-08-31", "segment_id": "seg-a", "activity_probability": 0.82, "activity_window_start": "2026-09-01", "activity_window_end": "2026-11-30", "activity_support": {"status": "supported", "reason": null, "history_months": 24, "active_months": 18}, "expected_volume_3m": 12.0, "recency_months": 0, "cadence_months": 1.0, "inactivity": {"flagged": false, "recency_to_cadence": 0.5, "recent_volume": 12, "baseline_volume": 11.0, "deficit_fraction": 0.0, "rule_version": "inactivity-v1", "reasons": [], "support": {"status": "supported", "reason": null, "history_months": 24, "active_months": 18}}},
+    {"snapshot_id": "synth-2026-08-31", "customer_id": "C-AUTO-004", "reference_date": "2026-08-31", "segment_id": "seg-b", "activity_probability": 0.21, "activity_window_start": "2026-09-01", "activity_window_end": "2026-11-30", "activity_support": {"status": "supported", "reason": null, "history_months": 24, "active_months": 10}, "expected_volume_3m": 1.5, "recency_months": 4, "cadence_months": 1.0, "inactivity": {"flagged": true, "recency_to_cadence": 4.0, "recent_volume": 0, "baseline_volume": 8.0, "deficit_fraction": 1.0, "rule_version": "inactivity-v1", "reasons": ["Inactivity exceeds 1.5x observed median cadence"], "support": {"status": "supported", "reason": null, "history_months": 24, "active_months": 10}}},
+    {"snapshot_id": "synth-2026-08-31", "customer_id": "C-MANU-001", "reference_date": "2026-08-31", "segment_id": null, "activity_probability": null, "activity_window_start": "2026-09-01", "activity_window_end": "2026-11-30", "activity_support": {"status": "insufficient_history", "reason": "fewer than 2 active months", "history_months": 3, "active_months": 1}, "expected_volume_3m": null, "recency_months": null, "cadence_months": null, "inactivity": {"flagged": false, "recency_to_cadence": null, "recent_volume": 0, "baseline_volume": null, "deficit_fraction": null, "rule_version": "inactivity-v1", "reasons": [], "support": {"status": "insufficient_history", "reason": "fewer than 2 active months", "history_months": 3, "active_months": 1}}}
+  ],
+  "workflows": [
+    {"account_owner": null, "checks": {"quotation_order": "unknown", "recent_contact": "unknown", "contact_details": "unknown", "checked_at": null, "checked_by": null}, "suppressions": [], "followups": []},
+    {"account_owner": "C-AUTO-001", "checks": {"quotation_order": "unknown", "recent_contact": "unknown", "contact_details": "unknown", "checked_at": null, "checked_by": null}, "suppressions": [{"reason_id": "C-AUTO-001:discovery:G-TORQUE", "status": "snoozed", "until": "2026-12-31", "note": "asked in Q3, revisit Q1", "updated_at": "2026-08-20"}], "followups": [{"id": "F-1", "customer_id": "C-AUTO-001", "due_date": "2026-08-15", "note": "confirm batch", "status": "open"}]}
+  ],
+  "stats": {"snapshot_id": "synth-2026-08-31", "reference_date": "2026-08-31", "max_instruments_per_account": 10, "max_calibration_events_3m": 12.0, "p90_instruments_per_account": 8.0}
+}
