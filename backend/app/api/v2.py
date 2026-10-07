@@ -289,8 +289,14 @@ def update_workflow(
             workflow = data.add_suppression(customer_id, patch.suppression, known)
         except ValueError as exc:
             raise HTTPException(404, str(exc))
+    refreshed = data.refresh_after_correction(snapshot_id, customer_id)
     return publish(
         "customer.workflow.updated",
-        {"customer_id": customer_id, "workflow": workflow.model_dump(), "action": None},
+        {
+            "customer_id": customer_id,
+            "workflow": workflow.model_dump(),
+            "action": refreshed["action"],
+            "suppressed_requirement_ids": refreshed["suppressed_requirement_ids"],
+        },
         "backend",
     )

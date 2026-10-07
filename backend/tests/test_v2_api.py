@@ -181,6 +181,7 @@ class V2ApiTests(unittest.TestCase):
         workflow = envelope["payload"]["workflow"]
         self.assertEqual(workflow["checks"]["quotation_order"], "in_progress")
         self.assertEqual(len(workflow["suppressions"]), 1)
+        self.assertEqual(envelope["payload"]["suppressed_requirement_ids"], ["REQ-006"])
         bad_reason = self.client.patch(
             "/api/v2/customers/SYN-002/workflow",
             params={"snapshot_id": SNAPSHOT},

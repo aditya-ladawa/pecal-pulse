@@ -46,7 +46,10 @@ class PortfolioRow(StrictModel):
     customer_id: str
     group_id: str
     group_label: str
-    distinct_instruments: int = Field(ge=0)
+    # Group-level distinct-instrument counts are not in the current export
+    # (it counts calibration rows per group). Null means not exported,
+    # never zero observed.
+    distinct_instruments: int | None = Field(default=None, ge=0)
     calibration_events: int = Field(ge=0)
     window_start: str = DateStr
     window_end: str = DateStr

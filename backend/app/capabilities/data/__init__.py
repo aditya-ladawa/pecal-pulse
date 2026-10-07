@@ -8,6 +8,8 @@ from .service import (
     load_snapshot,
     recency_months,
 )
+from .build_snapshot import build_snapshot, convert_interval
+from .composition import refresh_after_correction
 from .requirements import infer_requirements
 from .workflow import (
     add_suppression,
@@ -25,6 +27,9 @@ __all__ = [
     "list_customers",
     "get_customer_detail",
     "recency_months",
+    "build_snapshot",
+    "convert_interval",
+    "refresh_after_correction",
     "infer_requirements",
     "get_workflow",
     "update_checks",

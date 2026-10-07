@@ -113,5 +113,66 @@ class WorkflowPersistenceTests(unittest.TestCase):
         self.assertEqual(other.followups, [])
 
 
+class RefreshAfterCorrectionTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = TemporaryDirectory()
+        self.patch = patch.dict(
+            os.environ, {"PECAL_DEMO_DB": str(Path(self.tmp.name) / "refresh.sqlite3")}
+        )
+        self.patch.start()
+        self.addCleanup(self.patch.stop)
+        self.addCleanup(self.tmp.cleanup)
+
+    def test_refresh_without_ranking_fn_returns_no_action(self):
+        refreshed = data.refresh_after_correction("synthetic-v1", "SYN-001")
+        self.assertEqual(len(refreshed["requirements"]), 5)
+        self.assertEqual(len(refreshed["active_requirement_ids"]), 5)
+        self.assertEqual(refreshed["suppressed_requirement_ids"], [])
+        self.assertIsNone(refreshed["action"])
+
+    def test_resolved_reason_leaves_active_set(self):
+        data.add_suppression(
+            "SYN-001",
+            v2.SuppressionRecord(
+                reason_id="REQ-005",
+                status="resolved",
+                note="Instrument retired.",
+                updated_at="2026-09-01T08:00:00Z",
+            ),
+            {"REQ-001", "REQ-002", "REQ-003", "REQ-004", "REQ-005"},
+        )
+        seen = {}
+
+        def stub_ranking(profile, requirements, prediction, peers, workflow):
+            seen["ids"] = [r.id for r in requirements]
+            return "ranked"
+
+        refreshed = data.refresh_after_correction(
+            "synthetic-v1", "SYN-001", ranking_fn=stub_ranking
+        )
+        self.assertEqual(refreshed["suppressed_requirement_ids"], ["REQ-005"])
+        self.assertNotIn("REQ-005", seen["ids"])
+        self.assertEqual(len(seen["ids"]), 4)
+        self.assertEqual(refreshed["action"], "ranked")
+
+    def test_expired_snooze_returns_to_active(self):
+        data.add_suppression(
+            "SYN-001",
+            v2.SuppressionRecord(
+                reason_id="REQ-001",
+                status="snoozed",
+                until="2026-09-01",
+                note="Wait a week.",
+                updated_at="2026-08-20T08:00:00Z",
+            ),
+            {"REQ-001", "REQ-002", "REQ-003", "REQ-004", "REQ-005"},
+        )
+        refreshed = data.refresh_after_correction(
+            "synthetic-v1", "SYN-001", today="2026-10-07"
+        )
+        self.assertEqual(refreshed["suppressed_requirement_ids"], [])
+        self.assertIn("REQ-001", refreshed["active_requirement_ids"])
+
+
 if __name__ == "__main__":
     unittest.main()
