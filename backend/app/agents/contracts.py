@@ -31,6 +31,7 @@ class WorkspaceContext(ChatContext):
     visible_customer_ids: list[str] = Field(default_factory=list, max_length=100)
     action_limit: Literal[5, 10, 12] = 10
     customer_tab: Literal["activity", "portfolio", "next-step"] = "activity"
+    customer_activity_view: Literal["monthly", "quarter"] = "monthly"
     artifact_ids: list[str] = Field(default_factory=list, max_length=50)
 
 class AgentChatRequest(StrictModel):

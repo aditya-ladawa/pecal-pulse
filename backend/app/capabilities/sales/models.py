@@ -72,6 +72,7 @@ class AddArtifact(StrictModel):
 class CustomerTabControl(StrictModel):
     control: Literal["customers.tab"]
     value: Literal["activity", "portfolio", "next-step"]
+    activity_view: Literal["monthly", "quarter"] | None = None
 
 class ActionLimitControl(StrictModel):
     control: Literal["dashboard.action_limit"]

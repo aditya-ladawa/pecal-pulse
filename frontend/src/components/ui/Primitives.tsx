@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Info } from "lucide-react";
 import { actionLabels } from "@/modules/sales/store";
 import type { ActionType } from "@/types/sales";
 export function Badge({
@@ -33,6 +34,22 @@ export function Card({
   className?: string;
 }) {
   return <section className={`card ${className}`}>{children}</section>;
+}
+export function InfoHint({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <details className="info-hint">
+      <summary aria-label={`About ${label}`}>
+        <Info size={16} />
+      </summary>
+      <div role="note">{children}</div>
+    </details>
+  );
 }
 export function Avatar({
   initials,

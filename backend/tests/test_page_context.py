@@ -5,6 +5,13 @@ from backend.app.capabilities.workspace.tools import get_workspace_context
 
 
 class PageContextTests(unittest.TestCase):
+    def test_agent_can_switch_customer_activity_comparison(self):
+        from backend.app.capabilities.workspace.tools import set_customer_tab
+        runtime = SimpleNamespace(context=TurnContext(WorkspaceContext()))
+        result = set_customer_tab.func(tab="activity", activity_view="quarter", runtime=runtime)
+        self.assertEqual(runtime.context.workspace.customer_activity_view, "quarter")
+        self.assertEqual(result["event"]["payload"]["activity_view"], "quarter")
+
     def context(self):
         return WorkspaceContext(page="dashboard", customer_id="DEMO-1001", page_snapshot={
             "page": "dashboard", "title": "Your next conversation", "metrics": [{
