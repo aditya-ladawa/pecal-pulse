@@ -1,3 +1,9 @@
+import type {
+  TextMessagePart,
+  ReasoningMessagePart,
+  ToolCallMessagePart,
+  ThreadMessageLike,
+} from "@assistant-ui/react";
 export type Page = "dashboard" | "customers" | "follow-ups";
 export type ActionType = "upcoming" | "inactivity" | "discovery";
 export type Segment = "Frequent" | "Intermittent" | "Occasional";
@@ -70,7 +76,16 @@ export type UiCommand =
   | { type: "ui.navigate"; payload: { page: Page } }
   | { type: "customers.filters.set"; payload: Partial<CustomerFilters> }
   | { type: "customers.select"; payload: { customer_id: string } }
-  | { type: "artifact.created"; payload: ChartArtifact };
+  | { type: "artifact.created"; payload: ChartArtifact }
+  | {
+      type: "ui.control.set";
+      payload:
+        | {
+            control: "customers.tab";
+            value: "activity" | "portfolio" | "next-step";
+          }
+        | { control: "dashboard.action_limit"; value: 5 | 10 | 12 };
+    };
 export type DomainEvent = {
   type: "followup.created" | "followup.updated";
   payload: Followup;
@@ -80,16 +95,57 @@ export type EventEnvelope = (UiCommand | DomainEvent) & {
   timestamp: number;
   source: { type: "user" | "agent" | "backend" | "frontend" };
 };
+export type ChatPart =
+  | TextMessagePart
+  | ReasoningMessagePart
+  | ToolCallMessagePart;
 export interface ChatReply {
+  message_id?: string;
+  content?: ChatPart[];
   message: string;
-  mode: "scripted_mock";
+  mode: "scripted_mock" | "agent";
+  thread_id: string;
   events: EventEnvelope[];
   artifacts: ChartArtifact[];
 }
 export interface ChatMessage {
+  content?: ChatPart[];
+  status?: ThreadMessageLike["status"];
   id: string;
   role: "user" | "assistant";
   text: string;
   artifacts?: ChartArtifact[];
   actions?: string[];
+}
+
+export type CustomerTab = "activity" | "portfolio" | "next-step";
+export interface PageMetric {
+  label: string;
+  value: number;
+  unit: string;
+  scope: string;
+  definition: string;
+}
+export interface PageSnapshot {
+  page: Page;
+  title: string;
+  metrics: PageMetric[];
+}
+export interface WorkspaceContext {
+  page: Page;
+  customer_id: string | null;
+  filters: CustomerFilters;
+  reference_date: string;
+  visible_customer_ids: string[];
+  action_limit: 5 | 10 | 12;
+  customer_tab: CustomerTab;
+  artifact_ids: string[];
+  page_snapshot?: PageSnapshot;
+}
+export interface ChatStatus {
+  mode: "agent";
+  configured: boolean;
+  model: string;
+  data_mode: "mock";
+  checkpointing: "sqlite";
 }

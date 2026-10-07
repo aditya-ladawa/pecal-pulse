@@ -5,6 +5,12 @@ import type { EventEnvelope, UiCommand } from "@/types/sales";
 export function dispatchEvent(event: EventEnvelope) {
   const s = useSalesStore.getState();
   switch (event.type) {
+    case "ui.control.set":
+      if (event.payload.control === "customers.tab")
+        s.set({ customerTab: event.payload.value });
+      else if (event.payload.control === "dashboard.action_limit")
+        s.set({ actionLimit: event.payload.value });
+      break;
     case "ui.navigate":
       s.set({ requestedPage: event.payload.page });
       break;
