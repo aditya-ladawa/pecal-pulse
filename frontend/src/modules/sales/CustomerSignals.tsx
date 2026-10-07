@@ -241,3 +241,171 @@ export function CustomerSignals({ detail: d }: { detail: Detail }) {
     </Card>
   );
 }
+
+export function PeerQuestions({
+  detail: d,
+  activeOnly = false,
+}: {
+  detail: Detail;
+  activeOnly?: boolean;
+}) {
+  const peers = d.peer_opportunities.filter(
+    (p) =>
+      !activeOnly ||
+      d.action?.reasons.some(
+        (r) => r.type === "discovery" && r.title.includes(p.group_label),
+      ),
+  );
+  return (
+    <>
+      {peers.length ? (
+        peers.slice(0, 3).map((p) => (
+          <div className="sales-signal" key={p.group_label}>
+            <div className="card-heading">
+              <strong>{p.group_label}</strong>
+              <InfoHint label={`industry comparison for ${p.group_label}`}>
+                {Math.round(p.prevalence * 100)}% of{" "}
+                {p.peer_count.toLocaleString()} observed customers in the same
+                industry used this calibration category. This does not establish
+                that this customer owns the equipment or needs the service.
+              </InfoHint>
+            </div>
+            <p>
+              “Do you use {p.group_label} equipment, and how do you currently
+              arrange calibration?”
+            </p>
+            <small>
+              Used by {Math.round(p.prevalence * 100)}% of similar-industry
+              customers in our history.
+            </small>
+          </div>
+        ))
+      ) : (
+        <p>No supported additional-service suggestion for this account.</p>
+      )}
+    </>
+  );
+}
+
+export function salesBriefLines(d: Detail): string[] {
+  const batches = d.action?.reasons.filter((r) => r.type === "upcoming") || [];
+  const last = [...d.history].reverse().find((h) => h.calibration_events > 0);
+  const quiet = d.action?.reasons.some((r) => r.type === "inactivity");
+  const peers = d.peer_opportunities.filter((p) =>
+    d.action?.reasons.some(
+      (r) => r.type === "discovery" && r.title.includes(p.group_label),
+    ),
+  );
+  return [
+    d.profile.display_name,
+    `History through ${d.metadata.reference_date}`,
+    ...batches
+      .slice(0, 5)
+      .map(
+        (r) =>
+          `Confirm ${r.quantity ?? r.instrument_ids.length} instruments in ${equipmentLabel(d, r)}. Check timing and whether the batch has already been handled.`,
+      ),
+    ...(quiet
+      ? [
+          `Longer gap than this customer's usual pattern.${last ? ` Last observed calibration month: ${last.month}.` : ""}`,
+          "Ask: Have calibration timing or equipment needs changed?",
+        ]
+      : []),
+    ...peers
+      .slice(0, 3)
+      .map(
+        (p) =>
+          `Ask: Do you use ${p.group_label} equipment, and how do you currently arrange calibration?`,
+      ),
+    "Before contact: check current quotations/orders, recent conversations and the right contact person.",
+    "Agree on the next step, owner and follow-up date.",
+  ];
+}
+
+export function SalesPreparation({ detail: d }: { detail: Detail }) {
+  const batches = d.action?.reasons.filter((r) => r.type === "upcoming") || [];
+  const quiet = d.action?.reasons.some((r) => r.type === "inactivity");
+  const discovery = d.action?.reasons.some((r) => r.type === "discovery");
+  const last = [...d.history].reverse().find((h) => h.calibration_events > 0);
+  return (
+    <>
+      {batches.length > 0 && (
+        <div className="sales-signal">
+          <strong>Confirm the calibration need</strong>
+          <ul>
+            {batches.slice(0, 3).map((r) => (
+              <li key={r.id}>
+                {r.quantity ?? r.instrument_ids.length} instruments ·{" "}
+                {equipmentLabel(d, r)}
+                {r.id
+                  .split(":")
+                  .slice(-2)
+                  .filter(
+                    (v, i, a) =>
+                      /^\d{4}-\d{2}-\d{2}$/.test(v) && a.indexOf(v) === i,
+                  )
+                  .map(
+                    (v, i) =>
+                      `${i === 0 ? " · " : " – "}${new Date(v + "T12:00:00Z").toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}`,
+                  )
+                  .join("")}
+              </li>
+            ))}
+          </ul>
+          <p>
+            “Are these instruments still due for calibration? What timing and
+            batch size would suit you?”
+          </p>
+        </div>
+      )}
+      {quiet && (
+        <div className="sales-signal orange">
+          <strong>Check in after a longer gap</strong>
+          <p>
+            This customer has been quieter than their usual pattern.
+            {last &&
+              ` Last recorded calibration activity: ${new Date(last.month + "-01T12:00:00Z").toLocaleDateString(undefined, { month: "short", year: "numeric" })}.`}
+          </p>
+          <p>
+            “Have your calibration timing or equipment needs changed? Is there
+            anything we can help plan?”
+          </p>
+          <InfoHint label="longer activity gap">
+            A historical activity signal, not confirmed customer loss. Timing
+            changes, seasonality and equipment changes can explain the gap.
+          </InfoHint>
+        </div>
+      )}
+      {discovery && (
+        <>
+          <h3>Ask about another service</h3>
+          <PeerQuestions detail={d} activeOnly />
+        </>
+      )}
+      {!batches.length && !quiet && !discovery && (
+        <p>
+          No active contact reason. Review the customer history before deciding
+          on outreach.
+        </p>
+      )}
+      <details>
+        <summary>Before you contact them</summary>
+        <ul>
+          <li>
+            {d.workflow.checks.quotation_order === "in_progress"
+              ? "A quote or order is already being handled—coordinate with its owner."
+              : d.workflow.checks.quotation_order === "reported_none"
+                ? "The team reported no current quote or order."
+                : "Check whether a quote or order is already being handled."}
+          </li>
+          <li>
+            {d.workflow.checks.recent_contact === "unknown"
+              ? "Check whether a colleague has recently spoken to this customer."
+              : "Review the recorded contact check before outreach."}
+          </li>
+          <li>Confirm the right contact person and agree on a next step.</li>
+        </ul>
+      </details>
+    </>
+  );
+}
