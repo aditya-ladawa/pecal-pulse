@@ -204,7 +204,20 @@ def customer_detail(customer_id: str, snapshot_id: str = DEFAULT_SNAPSHOT, windo
         from ..contracts.opportunities import OpportunityFilters
         action = scoped_customer_action(snapshot_id, customer_id, OpportunityFilters(window_days=window_days,
             include_past_due=include_past_due, include_inferred=include_inferred), WORKFLOW_TODAY)
-    prediction = analytics_for_snapshot(data.load_snapshot(snapshot_id)).prediction(customer_id)
+    analytics = analytics_for_snapshot(data.load_snapshot(snapshot_id))
+    prediction = analytics.prediction(customer_id)
+    forecast_quality = None
+    if prediction is not None and prediction.calibration_volume.support.status == "supported":
+        report = analytics.payload("model_report") or {}
+        method = prediction.calibration_volume.method
+        metrics = report.get("volume_metrics", {}).get(method, {}).get("test", {})
+        forecast_quality = {
+            "input_months": 12 if method == "previous_12_months_divided_by_4" else 3 if method in ("previous_3_months", "same_3_months_last_year") else None,
+            "test_windows": metrics.get("n"),
+            "test_customers": report.get("stage_unique_customers", {}).get("test"),
+            "wape": metrics.get("wape"),
+            "mae": metrics.get("mae"),
+        }
     return {
         "metadata": _metadata(snapshot_id).model_dump(),
         "profile": detail["profile"].model_dump(),
@@ -215,6 +228,7 @@ def customer_detail(customer_id: str, snapshot_id: str = DEFAULT_SNAPSHOT, windo
             or {kind: sum(r.kind == kind for r in detail["requirements"]) for kind in ("recorded","nominal_interval","repeat_history","unknown")},
         "requirements_display_limit": 500 if data.load_snapshot(snapshot_id).get("runtime_compact") else None,
         "prediction": prediction.model_dump() if prediction is not None else None,
+        "forecast_quality": forecast_quality,
         "action": action.model_dump() if action is not None else None,
         "peer_opportunities": [
             p.model_dump() for p in data.peers_for_customer(snapshot_id, customer_id)

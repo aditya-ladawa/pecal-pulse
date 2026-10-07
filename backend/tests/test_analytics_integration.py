@@ -118,6 +118,15 @@ class AnalyticsIntegrationTests(unittest.TestCase):
         self.assertIsNone(detail["prediction"]["activity"]["probability"])
         self.assertIsNone(detail["prediction"]["calibration_volume"]["expected_total"])
         self.assertIsNone(detail["action"])
+        self.assertIsNone(detail["forecast_quality"])
+
+    def test_customer_forecast_quality_matches_selected_volume_holdout(self):
+        publish_outputs(self.outputs, self.analytics)
+        detail = self.get(f"customers/{self.customer}").json()
+        method = detail["prediction"]["calibration_volume"]["method"]
+        expected = self.outputs["model_report"]["volume_metrics"][method]["test"]
+        self.assertEqual(detail["forecast_quality"]["wape"], expected["wape"])
+        self.assertEqual(detail["forecast_quality"]["test_windows"], expected["n"])
 
     def test_same_id_with_wrong_source_dates_is_unavailable(self):
         outputs = deepcopy(self.outputs)
