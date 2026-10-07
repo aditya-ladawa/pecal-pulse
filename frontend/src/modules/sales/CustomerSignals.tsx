@@ -1,6 +1,86 @@
 "use client";
 import { Card, InfoHint } from "@/components/ui/Primitives";
-import type { Detail } from "@/types/sales-v2";
+import type { Action, Detail } from "@/types/sales-v2";
+
+function equipmentLabel(detail: Detail, reason: Action["reasons"][number]) {
+  const groupId = reason.id.split(":").slice(-3)[0];
+  return (
+    detail.portfolio.find((p) => p.group_id === groupId)?.group_label ||
+    groupId?.replace(/^GRP-/, "").replaceAll("_", " ") ||
+    "Equipment"
+  );
+}
+
+export function BatchReasonSummary({
+  detail,
+  reason: r,
+}: {
+  detail: Detail;
+  reason: Action["reasons"][number];
+}) {
+  const dates = r.id.split(":").slice(-2);
+  const timing = [...new Set(dates)]
+    .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date))
+    .map((date) =>
+      new Date(date + "T12:00:00Z").toLocaleDateString(undefined, {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      }),
+    )
+    .join(" – ");
+  const past = r.title.includes("past due");
+  const estimated = r.unknowns.some((u) => u.includes("inferred"));
+  const upcoming = r.type === "upcoming";
+  return (
+    <div className="batch-summary">
+      {upcoming && (
+        <div className="batch-quantity">
+          <strong>
+            {(r.quantity ?? r.instrument_ids.length).toLocaleString()}
+          </strong>
+          <small>instruments</small>
+        </div>
+      )}
+      <div className="batch-context">
+        <strong>
+          {upcoming
+            ? equipmentLabel(detail, r)
+            : r.type === "inactivity"
+              ? "Check reduced activity"
+              : "Explore an additional service"}
+        </strong>
+        <span>
+          {upcoming
+            ? timing || "Timing to confirm"
+            : "A conversation worth reviewing"}
+        </span>
+        <div className="batch-tags">
+          <span className={past ? "batch-status review" : "batch-status"}>
+            {upcoming
+              ? past
+                ? "Date passed · check status"
+                : "Upcoming need"
+              : "Review opportunity"}
+          </span>
+          {upcoming && (
+            <small>{estimated ? "Estimated timing" : "Date on file"}</small>
+          )}
+        </div>
+      </div>
+      <InfoHint
+        label={`evidence for ${upcoming ? equipmentLabel(detail, r) + " " + timing : r.title}`}
+      >
+        <p>{r.explanation}</p>
+        {r.unknowns.length > 0 && <p>To confirm: {r.unknowns.join("; ")}</p>}
+        <small>
+          History reference: {detail.metadata.reference_date}. A passed date
+          does not confirm outstanding work.
+        </small>
+      </InfoHint>
+    </div>
+  );
+}
 
 export function CustomerSignals({ detail: d }: { detail: Detail }) {
   const reasons = d.action?.reasons || [];
@@ -16,11 +96,7 @@ export function CustomerSignals({ detail: d }: { detail: Detail }) {
     }
   >();
   for (const r of reasons.filter((r) => r.type === "upcoming")) {
-    const groupId = r.id.split(":").slice(-3)[0];
-    const label =
-      d.portfolio.find((p) => p.group_id === groupId)?.group_label ||
-      groupId?.replace(/^GRP-/, "").replaceAll("_", " ") ||
-      "Equipment";
+    const label = equipmentLabel(d, r);
     const status = r.title.includes("past due")
       ? "Date passed — confirm status"
       : "Coming due";
@@ -50,25 +126,26 @@ export function CustomerSignals({ detail: d }: { detail: Detail }) {
           plans before contacting the customer.
         </InfoHint>
       </div>
-    {reasons.some((r) => r.type === "inactivity") && d.prediction?.inactivity.flagged && (
-        <div className="sales-signal orange">
-          <strong>Check in on reduced activity</strong>
-          <ul>
-            {d.prediction.inactivity.reasons.map((r) => (
-              <li key={r}>
-                {r.includes("50%")
-                  ? "Calibration work in the latest three months is at least half below the previous year’s quarterly average."
-                  : r.includes("cadence")
-                    ? "This customer has been quiet longer than their usual calibration cycle."
-                    : r}
-              </li>
-            ))}
-          </ul>
-          <small>
-            Ask whether timing, equipment or requirements have changed.
-          </small>
-        </div>
-      )}
+      {reasons.some((r) => r.type === "inactivity") &&
+        d.prediction?.inactivity.flagged && (
+          <div className="sales-signal orange">
+            <strong>Check in on reduced activity</strong>
+            <ul>
+              {d.prediction.inactivity.reasons.map((r) => (
+                <li key={r}>
+                  {r.includes("50%")
+                    ? "Calibration work in the latest three months is at least half below the previous year’s quarterly average."
+                    : r.includes("cadence")
+                      ? "This customer has been quiet longer than their usual calibration cycle."
+                      : r}
+                </li>
+              ))}
+            </ul>
+            <small>
+              Ask whether timing, equipment or requirements have changed.
+            </small>
+          </div>
+        )}
       {groups.size > 0 && (
         <>
           <p>
