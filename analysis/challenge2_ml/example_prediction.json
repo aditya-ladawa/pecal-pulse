@@ -1,0 +1,132 @@
+{
+  "snapshot_id": "synthetic-analytics-v1",
+  "customer_id": "synthetic-customer-00",
+  "reference_date": "2026-12-31",
+  "segment_id": "segment-4",
+  "activity": {
+    "target": "any_calibration_next_3_months",
+    "probability": 0.9999978410157769,
+    "window_start": "2027-01",
+    "window_end": "2027-03",
+    "model_version": "analytics-v1",
+    "support": {
+      "status": "supported",
+      "reason": null,
+      "history_months": 36,
+      "active_months": 18
+    }
+  },
+  "calibration_volume": {
+    "metric": "calibration_events",
+    "horizon_months": 3,
+    "window_start": "2027-01",
+    "window_end": "2027-03",
+    "expected_total": 4.0,
+    "lower": null,
+    "upper": null,
+    "interval_level": null,
+    "monthly": null,
+    "method": "same_3_months_last_year",
+    "model_version": "analytics-v1",
+    "support": {
+      "status": "supported",
+      "reason": null,
+      "history_months": 36,
+      "active_months": 18
+    }
+  },
+  "recency_months": 1,
+  "cadence_months": 2.0,
+  "inactivity": {
+    "flagged": false,
+    "recency_to_cadence": 0.5,
+    "recent_volume": 2,
+    "baseline_volume": 3.0,
+    "deficit_fraction": 0.3333333333333333,
+    "rule_version": "inactivity-v1",
+    "reasons": [],
+    "support": {
+      "history_months": 36,
+      "active_months": 18,
+      "status": "supported",
+      "reason": null
+    }
+  },
+  "explanation": [
+    {
+      "feature": "recent_3_log",
+      "value": 1.0986122886681098,
+      "contribution": null
+    },
+    {
+      "feature": "previous_3_log",
+      "value": 1.6094379124341003,
+      "contribution": null
+    },
+    {
+      "feature": "latest_log",
+      "value": 0.0,
+      "contribution": null
+    },
+    {
+      "feature": "recency_months",
+      "value": 1.0,
+      "contribution": null
+    },
+    {
+      "feature": "active_last_6",
+      "value": 3.0,
+      "contribution": null
+    },
+    {
+      "feature": "mean_monthly_log",
+      "value": 0.6931471805599453,
+      "contribution": null
+    },
+    {
+      "feature": "tenure_log",
+      "value": 3.6109179126442243,
+      "contribution": null
+    },
+    {
+      "feature": "group_breadth_log",
+      "value": 0.6931471805599453,
+      "contribution": null
+    },
+    {
+      "feature": "season_sin",
+      "value": -0.5000000000000004,
+      "contribution": null
+    },
+    {
+      "feature": "season_cos",
+      "value": 0.8660254037844384,
+      "contribution": null
+    },
+    {
+      "feature": "active_fraction",
+      "value": 0.5,
+      "contribution": null
+    },
+    {
+      "feature": "cadence_months",
+      "value": 2.0,
+      "contribution": null
+    },
+    {
+      "feature": "gap_variability",
+      "value": 0.0,
+      "contribution": null
+    },
+    {
+      "feature": "recency_to_cadence",
+      "value": 0.5,
+      "contribution": null
+    },
+    {
+      "feature": "volume_momentum",
+      "value": -0.5108256237659905,
+      "contribution": null
+    }
+  ]
+}
