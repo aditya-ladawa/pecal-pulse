@@ -10,7 +10,7 @@ class StrictModel(BaseModel):
 
 class Filters(StrictModel):
     industry: str | None = None
-    segment: Literal["all", "Frequent", "Intermittent", "Occasional"] | None = None
+    segment: str | None = Field(default=None, max_length=100)
     action: Literal["all", "upcoming", "inactivity", "discovery"] | None = None
     query: str | None = None
 
@@ -50,7 +50,7 @@ class ChartArtifact(StrictModel):
     labels: list[str] = Field(min_length=1, max_length=50)
     datasets: list[Dataset] = Field(min_length=1, max_length=5)
     unit: Literal["calibrations", "instruments", "customers"]
-    source: Literal["mock"] = "mock"
+    source: Literal["mock", "historical"] = "mock"
 
     @model_validator(mode="after")
     def matching_lengths(self):

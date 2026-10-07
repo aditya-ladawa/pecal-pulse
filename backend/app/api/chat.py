@@ -5,6 +5,7 @@ from fastapi.responses import StreamingResponse
 from openai import APIStatusError
 from fastapi import APIRouter, Request, HTTPException
 from ..agents.contracts import AgentChatRequest
+from .v2 import DEFAULT_SNAPSHOT, _mode
 from ..agents.react_agent import ChatUnavailable, ThreadBusy
 
 router = APIRouter(prefix="/api")
@@ -13,7 +14,7 @@ router = APIRouter(prefix="/api")
 async def status(request: Request):
     service = request.app.state.chat
     return {"mode": "agent", "configured": service.configured, "model": service.model_name,
-            "data_mode": "mock", "checkpointing": "sqlite"}
+            "data_mode": _mode(DEFAULT_SNAPSHOT), "snapshot_id": DEFAULT_SNAPSHOT, "checkpointing": "sqlite"}
 
 @router.post("/chat")
 async def chat(payload: AgentChatRequest, request: Request):

@@ -18,6 +18,7 @@ class PageSnapshot(StrictModel):
 
 class WorkspaceContext(ChatContext):
     page_snapshot: PageSnapshot | None = None
+    snapshot_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]+$", max_length=100)
     reference_date: str | None = None
     visible_customer_ids: list[str] = Field(default_factory=list, max_length=100)
     action_limit: Literal[5, 10, 12] = 10

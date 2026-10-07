@@ -16,7 +16,7 @@ from ..insights import compat as _compat
 from ..insights import service as _insights
 from ..insights.peers import owns_category as _owns_category
 from .service import get_customer_detail, list_customers, load_snapshot
-from .workflow import get_workflow
+from .workflow import get_workflow, _db_path
 from ...contracts import sales_v2 as v2
 
 WORKFLOW_TODAY = os.getenv("PECAL_TODAY", "2026-10-07")
@@ -44,11 +44,8 @@ def snapshot_stats(snapshot_id: str) -> _insights.SnapshotStats:
                 instruments_per_account.get(inst.current_customer_id, 0) + 1
             )
     if not instruments_per_account:
-        for profile in snapshot["profiles"]:
-            rows = [h for h in snapshot["history"] if h.customer_id == profile.customer_id]
-            instruments_per_account[profile.customer_id] = max(
-                [h.distinct_instruments for h in rows] + [0]
-            )
+        for row in snapshot["history"]:
+            instruments_per_account[row.customer_id] = max(instruments_per_account.get(row.customer_id, 0), row.distinct_instruments)
     complete = snapshot["manifest"].complete_through_month
     recent = sorted({h.month for h in snapshot["history"] if h.month <= complete})[-3:]
     volume_3m: dict[str, float] = {}
@@ -200,54 +197,37 @@ def preparation_for_customer(
     return v2.PreparationCard.model_validate(card.model_dump())
 
 
-def ranked_queue(
-    snapshot_id: str, today: str = WORKFLOW_TODAY
-) -> list[v2.AccountAction]:
-    """All proactive account actions, deterministic rank order (score desc, id asc)."""
+def ranked_queue(snapshot_id: str, today: str = WORKFLOW_TODAY) -> list[v2.AccountAction]:
+    """Cache deterministic queues until local workflow or analytics changes."""
+    snapshot = load_snapshot(snapshot_id)
+    path = _db_path()
+    analytics = _analytics_for_snapshot(snapshot)
+    key = (today, str(path), path.stat().st_mtime_ns if path.exists() else None,
+           os.getenv("PECAL_ANALYTICS_ROOT"), analytics.available, analytics.predictions_ready)
+    cached = snapshot.get("_queue")
+    if cached and cached["key"] == key:
+        return cached["actions"]
     stats = snapshot_stats(snapshot_id)
-    ranking_fn = _compat.ranking_fn_for_composition(stats, today=today)
-    actions = []
+    actions, workflows = [], {}
     for profile in list_customers(snapshot_id):
         local = _local_inputs(snapshot_id, profile.customer_id, today)
-        action = ranking_fn(
-            profile, local["requirements"], local["prediction"], local["peers"], local["workflow_shared"]
-        )
+        workflows[profile.customer_id] = local["workflow"]
+        action = _insights.build_account_action(snapshot_id=snapshot_id, customer_id=profile.customer_id,
+            requirements=local["requirements"], prediction=local["prediction"],
+            peer_opportunities=local["peers"], workflow=local["workflow"], stats=stats, today=today)
         if action is not None:
-            actions.append(
-                v2.AccountAction.model_validate(_compat.action_to_shared_payload(action))
-            )
-    return sorted(actions, key=lambda a: (-a.priority_score, a.customer_id))
+            actions.append(v2.AccountAction.model_validate(_compat.action_to_shared_payload(action)))
+    actions.sort(key=lambda a: (-a.priority_score, a.customer_id))
+    # The first read may initialize the workflow DB; capture its final revision.
+    key = (*key[:2], path.stat().st_mtime_ns, *key[3:])
+    snapshot["_queue"] = {"key": key, "actions": actions, "workflows": workflows}
+    return actions
 
 
-def split_queue(
-    snapshot_id: str, today: str = WORKFLOW_TODAY
-) -> tuple[list[v2.AccountAction], list[v2.AccountAction]]:
-    """Agreed due follow-ups deadline-first; everything else keeps ranked order."""
-    stats = snapshot_stats(snapshot_id)
-    local_actions = []
-    local_workflows = {}
-    for profile in list_customers(snapshot_id):
-        local = _local_inputs(snapshot_id, profile.customer_id, today)
-        local_workflows[profile.customer_id] = local["workflow"]
-        action = _insights.build_account_action(
-            snapshot_id=snapshot_id,
-            customer_id=profile.customer_id,
-            requirements=local["requirements"],
-            prediction=local["prediction"],
-            peer_opportunities=local["peers"],
-            workflow=local["workflow"],
-            stats=stats,
-            today=today,
-        )
-        if action is not None:
-            local_actions.append(action)
-    due_first, rest = _insights.split_followups_first(
-        local_actions, local_workflows, today
-    )
-    to_shared = lambda a: v2.AccountAction.model_validate(
-        _compat.action_to_shared_payload(a)
-    )
-    return [to_shared(a) for a in due_first], [to_shared(a) for a in rest]
+def split_queue(snapshot_id: str, today: str = WORKFLOW_TODAY) -> tuple[list[v2.AccountAction], list[v2.AccountAction]]:
+    actions = ranked_queue(snapshot_id, today)
+    workflows = load_snapshot(snapshot_id)["_queue"]["workflows"]
+    return _insights.split_followups_first(actions, workflows, today)
 
 
 def refresh_after_correction(
@@ -272,6 +252,13 @@ def refresh_after_correction(
         if local_action is not None
         else None
     )
+    snapshot = load_snapshot(snapshot_id)
+    cache = snapshot.get("_queue")
+    if cache and cache["key"][0] == today:
+        cache["actions"] = sorted([a for a in cache["actions"] if a.customer_id != customer_id] + ([action] if action else []), key=lambda a: (-a.priority_score, a.customer_id))
+        cache["workflows"][customer_id] = _compat.workflow_from_shared(state)
+        key = cache["key"]
+        cache["key"] = (*key[:2], _db_path().stat().st_mtime_ns, *key[3:])
     return {
         "customer_id": customer_id,
         "requirements": detail["requirements"],

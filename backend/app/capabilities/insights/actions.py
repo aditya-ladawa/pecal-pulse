@@ -16,7 +16,7 @@ desc, then customer_id asc, then reason id asc.
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 from pydantic import BaseModel, ConfigDict
 
@@ -110,14 +110,27 @@ def build_upcoming_reasons(
     requirements: list[Requirement],
     workflow: AccountWorkflow | None,
     today: str,
+    reference_date: str | None = None,
 ) -> list[ActionReason]:
-    """Bundle requirements by (group_id, window) with deduped instruments."""
+    """Bundle supported windows within 90 days either side of the source reference.
+
+    This configurable-in-code outreach policy is a business assumption, not a
+    prediction. Older and far-future records remain in the evidence workspace.
+    Workflow suppression uses today independently of the historical horizon.
+    """
+    reference = _parse_day(reference_date or today)
+    if reference is None:
+        return []
+    earliest, latest = reference - timedelta(days=90), reference + timedelta(days=90)
     # Group by (group, window_start, window_end); excluded kinds never rank.
     buckets: dict[tuple[str, str | None, str | None], list[Requirement]] = {}
     for req in requirements:
         if req.customer_id != customer_id:
             continue
         if req.eligibility == "excluded" or req.stopped is True or req.kind == "unknown" or req.window_start is None or req.window_end is None:
+            continue
+        start, end = _parse_day(req.window_start), _parse_day(req.window_end)
+        if start is None or end is None or end < start or end < earliest or start > latest:
             continue
         key = (req.group_id or "__ungrouped__", req.window_start, req.window_end)
         buckets.setdefault(key, []).append(req)
@@ -155,6 +168,10 @@ def build_upcoming_reasons(
             status = "review_required"
         else:
             status = "eligible"
+        overdue = _parse_day(window_end) < reference
+        if overdue:
+            status = "review_required" if not suppressed else status
+            unknowns = sorted(set(unknowns) | {"past-due record; completion or changed timing must be checked"})
         label = group_id if group_id != "__ungrouped__" else "equipment"
         methods = sorted({r.method for r in reqs if r.method})
         method_txt = f" Method: {'; '.join(methods)}." if methods else ""
@@ -162,7 +179,7 @@ def build_upcoming_reasons(
             ActionReason(
                 id=rid,
                 type="upcoming",
-                title=f"{len(instruments)} instrument(s) due — {label}",
+                title=f"{len(instruments)} instrument(s) {'past due for review' if overdue else 'due'} — {label}",
                 explanation=(
                     f"{len(instruments)} distinct instrument(s) in {label} "
                     f"fall in window {window_start}…{window_end} "
@@ -418,6 +435,7 @@ def build_account_action(
             requirements=requirements,
             workflow=workflow,
             today=today,
+            reference_date=stats.reference_date,
         )
         + (
             [r]
