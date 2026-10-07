@@ -15,7 +15,13 @@ import {
   X,
 } from "lucide-react";
 import { useSalesStore } from "@/modules/sales/store";
-import { loadWorkspace } from "@/modules/sales/api";
+import {
+  getV2Bootstrap,
+  getV2Customers,
+  getV2Followups,
+} from "@/modules/sales/api";
+import { defaultFilters } from "@/modules/sales/store";
+import { IntegratedWorkspace } from "@/modules/sales/IntegratedWorkspace";
 import {
   SalesAssistant,
   SalesAssistantProvider,
@@ -26,6 +32,8 @@ const nav = [
   { href: "/follow-ups", label: "Follow-ups", icon: ListTodo },
 ];
 export function AppShell({ children }: { children: ReactNode }) {
+  const v2 = useSalesStore((s) => s.v2),
+    v2Error = useSalesStore((s) => s.v2Error);
   const pathname = usePathname(),
     router = useRouter(),
     collapsed = useSalesStore((s) => s.sidebarCollapsed),
@@ -39,12 +47,25 @@ export function AppShell({ children }: { children: ReactNode }) {
     set = useSalesStore((s) => s.set);
   useEffect(() => {
     let active = true;
-    loadWorkspace()
-      .then((data) => {
-        if (active) set({ data, apiStatus: "connected" });
+    getV2Bootstrap()
+      .then(async (boot) => {
+        const [list, tasks] = await Promise.all([
+          getV2Customers(boot.metadata.snapshot_id, defaultFilters),
+          getV2Followups(boot.metadata.snapshot_id),
+        ]);
+        if (active)
+          set({
+            v2: boot,
+            v2List: list,
+            selectedId: list.items[0]?.profile.customer_id || "",
+            data: { ...useSalesStore.getState().data, followups: tasks.items },
+            apiStatus: "connected",
+            v2Loading: false,
+          });
       })
-      .catch(() => {
-        if (active) set({ apiStatus: "offline" });
+      .catch((e) => {
+        if (active)
+          set({ apiStatus: "offline", v2Loading: false, v2Error: e.message });
       });
     return () => {
       active = false;
@@ -151,12 +172,33 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="mock-banner">
             <FlaskConical size={14} />
             <span>
-              <strong>Mock workspace</strong> · Synthetic customers, forecasts
-              and sector relationships. History reference: 30 Sept 2026.
+              <strong>
+                {v2?.metadata.mode === "historical"
+                  ? "Historical workspace"
+                  : v2
+                    ? "Synthetic workspace"
+                    : "Loading workspace"}
+              </strong>{" "}
+              · History reference: {v2?.metadata.reference_date || "Loading…"}.{" "}
+              {v2?.metadata.mode === "historical"
+                ? "Source extract, not live quotations or orders."
+                : v2
+                  ? "Generated demo data; not historical evidence."
+                  : "Loading source metadata."}
             </span>
             <span className="preview-tag">UI preview</span>
           </div>
-          <div className="page-content">{children}</div>
+          <div className="page-content">
+            {v2 ? (
+              <IntegratedWorkspace />
+            ) : (
+              <div className="card">
+                <p role={v2Error ? "alert" : "status"}>
+                  {v2Error || "Loading snapshot and analytics…"}
+                </p>
+              </div>
+            )}
+          </div>
           <footer className="workspace-footer">
             Built for better customer conversations.
             <span>PeCal Pulse · Challenge 02 · Prototype</span>

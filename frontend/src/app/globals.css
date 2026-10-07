@@ -2381,3 +2381,23 @@ details[open] > summary > .disclosure-chevron { transform: rotate(90deg); }
 .markdown th, .markdown td { padding: 7px 9px; border: 1px solid #e4e9df; min-width: 75px; text-align: left; }
 .markdown th { background: #edf1e7; }
 .markdown pre { max-width: 100%; overflow-x: auto; font-size: 11px; padding: 12px; background: #f0f3eb; border-radius: 10px; }
+
+.integrated-customer-grid { display:grid;grid-template-columns:300px minmax(0,1fr);gap:24px;align-items:start; }
+.integrated-account {width:100%;display:flex;flex-direction:column;gap:7px;text-align:left;padding:16px;border:0;border-bottom:1px solid #eef2e7;background:transparent;color:inherit;border-radius:14px;cursor:pointer;}
+.integrated-account.selected {background:#eef4e6;}
+.integrated-account span,.integrated-account small {color:#778073;font-size:12px;}
+.integrated-pagination {display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;}
+.integrated-table {overflow:auto;}
+.integrated-table table {width:100%;border-collapse:collapse;font-size:13px;}
+.integrated-table td,.integrated-table th {padding:14px;text-align:left;border-bottom:1px solid #eef2e7;}
+.integrated-table small {display:block;max-width:420px;margin-top:6px;color:#778073;}
+.integrated-charts {display:grid;grid-template-columns:1fr 1fr;gap:24px;}
+.integrated-reason {padding:18px 0;border-bottom:1px solid #eef2e7;}
+.integrated-form {display:grid;gap:15px;}
+.integrated-form label,.integrated-filters label {display:flex;flex-direction:column;gap:7px;font-size:12px;}
+.integrated-form input,.integrated-form select,.integrated-form textarea,.integrated-filters input,.integrated-filters select {padding:12px;border:1px solid #dfe7d5;border-radius:12px;background:#fafcf6;color:inherit;max-width:100%;}
+.integrated-filters {display:flex;flex-wrap:wrap;gap:20px;margin-bottom:24px;}
+.integrated-detail-metrics {grid-template-columns:1fr 1fr;}
+.integrated-task {display:flex;justify-content:space-between;gap:20px;padding:20px 0;border-bottom:1px solid #eef2e7;}
+.integrated-customer-grid .card,.page-content>.card,.integrated-charts {margin-bottom:24px;}
+@media(max-width:1000px){.integrated-customer-grid {grid-template-columns:1fr;}.integrated-charts {grid-template-columns:1fr;}}

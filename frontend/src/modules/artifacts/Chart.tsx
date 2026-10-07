@@ -93,7 +93,7 @@ export function ArtifactChart({
   return (
     <Chart
       option={option}
-      label={`${artifact.title}. Synthetic ${artifact.unit}.`}
+      label={`${artifact.title}. ${artifact.source === "historical" ? "Historical observed" : "Synthetic"} ${artifact.unit}.`}
       height={compact ? 170 : 250}
     />
   );

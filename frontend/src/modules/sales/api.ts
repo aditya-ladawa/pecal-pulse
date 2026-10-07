@@ -10,7 +10,7 @@ import type {
   ChatMessage,
   ChatPart,
 } from "@/types/sales";
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api/sales/${path}`, init);
   if (!response.ok) {
     const error = await response.json().catch(() => null);
@@ -119,3 +119,46 @@ export async function streamChat(
     reader.releaseLock();
   }
 }
+
+export const getV2Bootstrap = () =>
+  request<import("@/types/sales-v2").Bootstrap>("v2/bootstrap");
+export function getV2Customers(
+  snapshot: string,
+  filters: CustomerFilters,
+  offset = 0,
+) {
+  const query = new URLSearchParams({
+    snapshot_id: snapshot,
+    sort: "priority",
+    limit: "20",
+    offset: String(offset),
+  });
+  if (filters.industry !== "all") query.set("industry_id", filters.industry);
+  if (filters.segment !== "all") query.set("segment_id", filters.segment);
+  if (filters.action !== "all") query.set("action", filters.action);
+  if (filters.query) query.set("query", filters.query);
+  return request<import("@/types/sales-v2").CustomerList>(
+    `v2/customers?${query}`,
+  );
+}
+export const getV2Detail = (snapshot: string, customer: string) =>
+  request<import("@/types/sales-v2").Detail>(
+    `v2/customers/${encodeURIComponent(customer)}?snapshot_id=${encodeURIComponent(snapshot)}`,
+  );
+export const getV2Followups = (snapshot: string) =>
+  request<{ items: import("@/types/sales").Followup[] }>(
+    `v2/followups?snapshot_id=${encodeURIComponent(snapshot)}`,
+  );
+export const patchV2Workflow = (
+  snapshot: string,
+  customer: string,
+  payload: unknown,
+) =>
+  request(
+    `v2/customers/${encodeURIComponent(customer)}/workflow?snapshot_id=${encodeURIComponent(snapshot)}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );

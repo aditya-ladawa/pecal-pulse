@@ -9,7 +9,7 @@ export type ActionType = "upcoming" | "inactivity" | "discovery";
 export type Segment = "Frequent" | "Intermittent" | "Occasional";
 export type CustomerFilters = {
   industry: string;
-  segment: Segment | "all";
+  segment: string;
   action: ActionType | "all";
   query: string;
 };
@@ -70,7 +70,7 @@ export interface ChartArtifact {
   labels: string[];
   datasets: { name: string; values: number[] }[];
   unit: "calibrations" | "instruments" | "customers";
-  source: "mock";
+  source: "mock" | "historical";
 }
 export type UiCommand =
   | { type: "ui.navigate"; payload: { page: Page } }
@@ -141,11 +141,13 @@ export interface WorkspaceContext {
   customer_tab: CustomerTab;
   artifact_ids: string[];
   page_snapshot?: PageSnapshot;
+  snapshot_id?: string;
 }
 export interface ChatStatus {
   mode: "agent";
   configured: boolean;
   model: string;
-  data_mode: "mock";
+  data_mode: "mock" | "historical";
+  snapshot_id?: string;
   checkpointing: "sqlite";
 }
