@@ -8,6 +8,7 @@ frontend/*.tsbuildinfo
 .env.*
 !.env.example
 data/runtime/
+data/mock/analytics_normalized.json
 *.log
 analysis/mr7/instruments.json
 analysis/mr7/calibration_events.json
