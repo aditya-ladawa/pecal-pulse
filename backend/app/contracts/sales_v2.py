@@ -320,7 +320,7 @@ class CustomerSummary(StrictModel):
     segment_id: str | None = None
     primary_action: AccountAction | None = None
     recency_months: int | None = Field(default=None, ge=0)
-    activity_probability: float | None = Probability
+    activity_probability: float | None = Field(default=None, ge=0, le=1)
 
 
 # ---------------------------------------------------------------------------
