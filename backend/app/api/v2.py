@@ -70,8 +70,9 @@ def bootstrap(snapshot_id: str = DEFAULT_SNAPSHOT):
         by_kind[req.kind] = by_kind.get(req.kind, 0) + 1
         if req.eligibility == "eligible":
             eligible += 1
+    valid_customer_ids = {p.customer_id for p in profiles}
     open_followups = sorted(
-        (f for f in data.list_followups_v2() if f.status == "open"),
+        (f for f in data.list_followups_v2() if f.status == "open" and f.customer_id in valid_customer_ids),
         key=lambda f: f.due_date,
     )
     _, proactive = data.split_queue(snapshot_id, WORKFLOW_TODAY)
@@ -229,9 +230,10 @@ def model_report(snapshot_id: str = DEFAULT_SNAPSHOT):
 @router.get("/followups")
 def list_followups(snapshot_id: str = DEFAULT_SNAPSHOT):
     _require_snapshot(snapshot_id)
+    valid_customer_ids = {p.customer_id for p in data.list_customers(snapshot_id)}
     return {
         "metadata": _metadata(snapshot_id).model_dump(),
-        "items": [f.model_dump() for f in data.list_followups_v2()],
+        "items": [f.model_dump() for f in data.list_followups_v2() if f.customer_id in valid_customer_ids],
         "workflow_today": WORKFLOW_TODAY,
     }
 
@@ -301,7 +303,9 @@ def create_followup(request: v2.FollowupCreateV2, snapshot_id: str = DEFAULT_SNA
     unknown = [rid for rid in request.reason_ids if rid not in known]
     if unknown:
         raise HTTPException(404, f"Unknown reason ids: {sorted(unknown)}")
-    return data.create_followup_v2(request, detail["profile"].display_name)
+    event = data.create_followup_v2(request, detail["profile"].display_name)
+    data.refresh_after_correction(snapshot_id, request.customer_id)
+    return event
 
 
 @router.patch("/followups/{task_id}")

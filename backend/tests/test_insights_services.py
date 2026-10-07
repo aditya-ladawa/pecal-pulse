@@ -183,6 +183,21 @@ class ActionConstructionTests(unittest.TestCase):
         self.assertEqual(reasons[0].quantity, 2)
         self.assertEqual(reasons[0].instrument_ids, ["I-1", "I-2"])
 
+    def test_outreach_horizon_uses_source_date_and_preserves_overdue_review(self):
+        reqs = [
+            _req(id="future", window_start="2035-09-01", window_end="2035-09-10"),
+            _req(id="old", window_start="2025-09-01", window_end="2025-09-10"),
+            _req(id="recent", window_start="2026-08-01", window_end="2026-08-10"),
+            _req(id="next", window_start="2026-09-01", window_end="2026-09-10"),
+        ]
+        reasons = build_upcoming_reasons(customer_id="C-AUTO-001", requirements=reqs,
+            workflow=None, today="2026-10-07", reference_date="2026-08-31")
+        self.assertEqual(len(reasons), 2)
+        overdue = next(r for r in reasons if "recent" in r.evidence_refs)
+        self.assertEqual(overdue.status, "review_required")
+        self.assertIn("past due", overdue.title)
+        self.assertEqual(len(reqs), 4)
+
     def test_stopped_instruments_never_rank(self):
         reqs = [_req(id="R-s", instrument_id="I-9", stopped=True)]
         action = build_account_action(

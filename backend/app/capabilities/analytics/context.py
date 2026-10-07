@@ -73,7 +73,9 @@ def for_snapshot(snapshot: dict) -> AnalyticsContext:
     """Accept Member 1's validated loader result; reject incompatible artifacts."""
     manifest = snapshot["manifest"]
     root = Path(os.getenv("PECAL_ANALYTICS_ROOT", str(DEFAULT_ROOT))).resolve()
-    customer_ids = snapshot.setdefault("_analytics_customer_ids", tuple(sorted(p.customer_id for p in snapshot["profiles"])))
+    if "_analytics_customer_ids" not in snapshot:
+        snapshot["_analytics_customer_ids"] = tuple(sorted(p.customer_id for p in snapshot["profiles"]))
+    customer_ids = snapshot["_analytics_customer_ids"]
     try:
         return _context(manifest.snapshot_id, manifest.reference_date,
                         manifest.complete_through_month,

@@ -28,3 +28,14 @@ class PageContextTests(unittest.TestCase):
         context.page = "customers"
         result = get_workspace_context.func(SimpleNamespace(context=TurnContext(context)))
         self.assertIsNone(result["page_snapshot"])
+
+    def test_snapshot_tools_use_shared_customer_data(self):
+        from backend.app.capabilities.workspace.tools import get_customer_evidence, set_customer_filters
+        context = WorkspaceContext(page="customers", customer_id="SYN-001", snapshot_id="synthetic-v1")
+        runtime = SimpleNamespace(context=TurnContext(context))
+        detail = get_customer_evidence.func(runtime)
+        self.assertEqual(detail["metadata"]["snapshot_id"], "synthetic-v1")
+        self.assertEqual(detail["profile"]["customer_id"], "SYN-001")
+        self.assertIn("requirement_count", detail)
+        result = set_customer_filters.func(runtime, industry="IND-AUTOMOTIVE")
+        self.assertEqual(result["event"]["payload"]["industry"], "IND-AUTOMOTIVE")
