@@ -8,6 +8,7 @@ All inputs are account-level portfolio rows / ranked actions.
 from __future__ import annotations
 
 from .models import AccountAction, PortfolioRow
+from .peers import owns_category
 
 
 def category_prevalence_by_industry(
@@ -26,7 +27,7 @@ def category_prevalence_by_industry(
     owners_by_pair: dict[tuple[str, str], set[str]] = {}
     labels: dict[tuple[str, str], str] = {}
     for row in portfolios:
-        if row.distinct_instruments <= 0:
+        if not owns_category(row):
             continue
         industry = industry_by_customer.get(row.customer_id)
         if industry is None:

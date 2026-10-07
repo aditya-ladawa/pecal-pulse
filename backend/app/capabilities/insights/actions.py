@@ -122,7 +122,9 @@ def build_upcoming_reasons(
         key = (req.group_id or "__ungrouped__", req.window_start, req.window_end)
         buckets.setdefault(key, []).append(req)
     reasons: list[ActionReason] = []
-    for (group_id, window_start, window_end) in sorted(buckets):
+    for (group_id, window_start, window_end) in sorted(
+        buckets, key=lambda k: (k[0] or "", k[1] or "", k[2] or "")
+    ):
         reqs = buckets[(group_id, window_start, window_end)]
         instruments = sorted({r.instrument_id for r in reqs})
         kinds = {r.kind for r in reqs}
@@ -142,7 +144,7 @@ def build_upcoming_reasons(
         if best_kind != "recorded" and "due window is inferred, not recorded" not in unknowns:
             unknowns = sorted(unknowns + ["due window is inferred, not recorded"])
         rid = reason_id_for(
-            customer_id, "upcoming", f"{group_id}:{window_start}:{window_end}"
+            customer_id, "upcoming", f"{group_id or '__ungrouped__'}:{window_start}:{window_end}"
         )
         suppressed, suppression_reason = suppression_for(rid, workflow, today)
         any_review = any(r.eligibility == "review_required" for r in reqs)

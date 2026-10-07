@@ -19,3 +19,14 @@ from .service import (  # noqa: F401
     rank_actions,
     split_followups_first,
 )
+from .compat import (  # noqa: F401
+    action_to_shared_payload,
+    peers_from_shared,
+    portfolio_from_shared,
+    prediction_from_shared,
+    profile_from_shared,
+    ranking_fn_for_composition,
+    requirement_from_shared,
+    workflow_from_shared,
+)
+from .peers import owns_category  # noqa: F401
