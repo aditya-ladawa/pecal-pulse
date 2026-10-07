@@ -1558,6 +1558,9 @@ table {
   z-index: 50;
   overflow: hidden;
 }
+.chat-drawer.expanded {
+  width: min(900px, calc(100vw - 28px));
+}
 .chat-header {
   display: flex;
   align-items: center;
@@ -1586,6 +1589,9 @@ table {
   margin-top: 3px;
 }
 .chat-header > .icon-button {
+  flex-shrink: 0;
+}
+.chat-header > .icon-button:first-of-type {
   margin-left: auto;
 }
 .chat-context {
@@ -2226,6 +2232,18 @@ table {
     margin-left: auto;
     border-radius: 21px;
   }
+  .chat-drawer.expanded {
+    width: auto;
+    max-width: none;
+  }
+  .chat-header {
+    gap: 8px;
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+  .chat-orb {
+    flex-shrink: 0;
+  }
   .chat-launcher {
     right: 18px;
     bottom: 18px;
@@ -2341,3 +2359,25 @@ table {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* assistant-ui live reasoning/tool disclosures */
+.reasoning-block, .tool-group { margin: 10px 0; border: 1px solid #e4e9df; border-radius: 14px; background: #f6f8f2; }
+.reasoning-block summary, .tool-trace summary { display: flex; align-items: center; gap: 8px; padding: 11px 12px; cursor: pointer; list-style: none; font-size: 12px; color: #65735e; }
+.reasoning-block summary::-webkit-details-marker, .tool-trace summary::-webkit-details-marker { display: none; }
+.disclosure-chevron { margin-left: auto; transition: transform .15s; flex-shrink: 0; }
+details[open] > summary > .disclosure-chevron { transform: rotate(90deg); }
+.reasoning-content { padding: 0 12px 10px; max-height: 230px; overflow: auto; }
+.reasoning-content .markdown { color: #778073; font-size: 12px; }
+.trace-heading { display: flex; align-items: center; gap: 7px; padding: 10px 12px 0; font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: #82907a; }
+.trace-content { padding: 0 12px 12px; }
+.trace-content small { font-size: 10px; color: #8b9584; }
+.trace-content pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 200px; overflow: auto; padding: 10px; background: #edf1e7; border-radius: 9px; font-size: 10px; line-height: 1.5; }
+.spin { animation: pulse-spin 1s linear infinite; }
+@keyframes pulse-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+
+.markdown { overflow-wrap: anywhere; }
+.markdown table { display: block; overflow-x: auto; max-width: 100%; border-collapse: collapse; font-size: 11px; margin: 10px 0; }
+.markdown th, .markdown td { padding: 7px 9px; border: 1px solid #e4e9df; min-width: 75px; text-align: left; }
+.markdown th { background: #edf1e7; }
+.markdown pre { max-width: 100%; overflow-x: auto; font-size: 11px; padding: 12px; background: #f0f3eb; border-radius: 10px; }

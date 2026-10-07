@@ -1,12 +1,12 @@
 """Explicitly scripted UI demo. Replace orchestration, keep the tool boundary."""
 
-from ..registry import get_agent_tools
+from . import tools as legacy_tools
 from .models import ChatRequest
 from . import service
 
 
 def reply(request: ChatRequest):
-    tools = get_agent_tools()
+    tools = {name: getattr(legacy_tools, name) for name in ("create_industry_chart", "set_customer_filters", "navigate_workspace", "get_customer_evidence", "select_customer")}
     text = request.message.lower()
     events = []
     artifacts = []

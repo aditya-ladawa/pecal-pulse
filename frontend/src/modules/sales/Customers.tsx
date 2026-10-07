@@ -27,10 +27,13 @@ const months = (s: string) =>
 export function Customers() {
   const data = useSalesStore((s) => s.data),
     filters = useSalesStore((s) => s.filters),
-    selectedId = useSalesStore((s) => s.selectedId);
-  const [activeTab, setTab] = useState<"activity" | "portfolio" | "next-step">(
-    "activity",
-  );
+    selectedId = useSalesStore((s) => s.selectedId),
+    activeTab = useSalesStore((s) => s.customerTab);
+  const setTab = (tab: "activity" | "portfolio" | "next-step") =>
+    dispatchCommand({
+      type: "ui.control.set",
+      payload: { control: "customers.tab", value: tab },
+    });
   const visible = useMemo(
     () => filterCustomers(data, filters),
     [data, filters],

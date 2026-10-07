@@ -64,8 +64,20 @@ class AddArtifact(StrictModel):
     payload: ChartArtifact
 
 
+class CustomerTabControl(StrictModel):
+    control: Literal["customers.tab"]
+    value: Literal["activity", "portfolio", "next-step"]
+
+class ActionLimitControl(StrictModel):
+    control: Literal["dashboard.action_limit"]
+    value: Literal[5, 10, 12]
+
+class SetControl(StrictModel):
+    type: Literal["ui.control.set"]
+    payload: Annotated[CustomerTabControl | ActionLimitControl, Field(discriminator="control")]
+
 UiCommand = Annotated[
-    Navigate | SetFilters | SelectCustomer | AddArtifact, Field(discriminator="type")
+    Navigate | SetFilters | SelectCustomer | AddArtifact | SetControl, Field(discriminator="type")
 ]
 
 

@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import type { EChartsOption } from "echarts";
 import { useSalesStore } from "./store";
+import { dashboardSnapshot } from "./page-context";
 import { dispatchCommand, openCustomer } from "@/core/events/router";
 import { Chart, ArtifactChart } from "@/modules/artifacts/Chart";
 import { ActionBadge, Avatar, Badge, Card } from "@/components/ui/Primitives";
@@ -24,6 +25,7 @@ export function Dashboard() {
     set = useSalesStore((s) => s.set),
     artifacts = useSalesStore((s) => s.artifacts);
   const customers = data.customers;
+  const metrics = dashboardSnapshot(data).metrics;
   const activeTasks = data.followups.filter((f) => f.status === "open");
   const segmentOption = useMemo<EChartsOption>(
     () => ({
@@ -183,51 +185,43 @@ export function Dashboard() {
       <div className="metrics">
         <div className="metric mint">
           <div className="metric-top">
-            Customers to review
+            {metrics[0].label}
             <UsersRound size={18} />
           </div>
           <strong>
-            <AnimatedNumber value={customers.length} />
+            <AnimatedNumber value={metrics[0].value} />
           </strong>
           <span>Across 5 demo industries</span>
           <div className="metric-decoration" />
         </div>
         <div className="metric peach">
           <div className="metric-top">
-            Recorded upcoming needs
+            {metrics[1].label}
             <CalendarDays size={18} />
           </div>
           <strong>
-            <AnimatedNumber
-              value={customers.reduce((sum, c) => sum + c.recorded_due, 0)}
-            />
+            <AnimatedNumber value={metrics[1].value} />
             <small> instruments</small>
           </strong>
           <span>Mock due-date window · next 30 days</span>
         </div>
         <div className="metric lavender">
           <div className="metric-top">
-            Follow-ups needing attention
+            {metrics[2].label}
             <Clock3 size={18} />
           </div>
           <strong>
-            <AnimatedNumber
-              value={
-                activeTasks.filter((f) => f.due_date <= data.demo_today).length
-              }
-            />
+            <AnimatedNumber value={metrics[2].value} />
           </strong>
           <span>Due or overdue on the demo date</span>
         </div>
         <div className="metric cream">
           <div className="metric-top">
-            Activity review signals
+            {metrics[3].label}
             <ChartNoAxesCombined size={18} />
           </div>
           <strong>
-            <AnimatedNumber
-              value={customers.filter((c) => c.action === "inactivity").length}
-            />
+            <AnimatedNumber value={metrics[3].value} />
           </strong>
           <span>Unusual gaps to investigate</span>
         </div>
@@ -248,7 +242,9 @@ export function Dashboard() {
               <select
                 aria-label="Action shortlist size"
                 value={limit}
-                onChange={(e) => set({ actionLimit: Number(e.target.value) })}
+                onChange={(e) =>
+                  set({ actionLimit: Number(e.target.value) as 5 | 10 | 12 })
+                }
               >
                 <option value={5}>5 accounts</option>
                 <option value={10}>10 accounts</option>

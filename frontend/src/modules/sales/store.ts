@@ -7,6 +7,8 @@ import type {
   Page,
   Workspace,
   ChatMessage,
+  CustomerTab,
+  ChatStatus,
 } from "@/types/sales";
 interface SalesState {
   data: Workspace;
@@ -14,7 +16,12 @@ interface SalesState {
   selectedId: string;
   sidebarCollapsed: boolean;
   assistantOpen: boolean;
-  actionLimit: number;
+  assistantExpanded: boolean;
+  actionLimit: 5 | 10 | 12;
+  customerTab: CustomerTab;
+  threadId: string | null;
+  chatStatus: ChatStatus | null;
+  chatLoading: boolean;
   artifacts: ChartArtifact[];
   requestedPage: Page | null;
   notice: string;
@@ -34,7 +41,12 @@ export const useSalesStore = create<SalesState>((set) => ({
   selectedId: "DEMO-1001",
   sidebarCollapsed: false,
   assistantOpen: false,
+  assistantExpanded: false,
   actionLimit: 10,
+  customerTab: "activity",
+  threadId: null,
+  chatStatus: null,
+  chatLoading: true,
   artifacts: [],
   requestedPage: null,
   notice: "",

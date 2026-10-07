@@ -2,13 +2,12 @@ from fastapi import APIRouter, HTTPException
 from pydantic import TypeAdapter
 from ..capabilities.sales import service
 from ..capabilities.sales.models import (
-    ChatRequest,
     FollowupCreate,
     FollowupUpdate,
     UiCommand,
 )
-from ..capabilities.sales.mock_assistant import reply
 from ..realtime.publisher import publish
+from ..agents.contracts import AgentChatRequest
 
 router = APIRouter(prefix="/api")
 
@@ -28,16 +27,8 @@ def contracts():
     return {
         "version": "1",
         "ui_commands": TypeAdapter(UiCommand).json_schema(),
-        "chat_request": ChatRequest.model_json_schema(),
+        "chat_request": AgentChatRequest.model_json_schema(),
     }
-
-
-@router.post("/chat")
-def chat(request: ChatRequest):
-    try:
-        return reply(request)
-    except ValueError as exc:
-        raise HTTPException(404, str(exc))
 
 
 @router.post("/commands")
