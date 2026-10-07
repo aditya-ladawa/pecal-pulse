@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from .api.sales import router
+from .api.sales import router as sales_router
+from .api.v2 import router as v2_router
 from .api.chat import router as chat_router
 from .agents.react_agent import agent_lifespan
 
@@ -11,5 +12,6 @@ async def lifespan(app):
         yield
 
 app = FastAPI(title="PeCal Sales Assistant", version="0.2.0", lifespan=lifespan)
-app.include_router(router)
+app.include_router(sales_router)
+app.include_router(v2_router)
 app.include_router(chat_router)

@@ -1,0 +1,655 @@
+{
+  "metadata": {
+    "contract_version": "2",
+    "snapshot_id": "synthetic-analytics-demo-v1",
+    "reference_date": "2026-08-31",
+    "mode": "mock",
+    "workflow_today": "2026-10-07",
+    "modules": {
+      "data": {
+        "status": "ready",
+        "reason": null
+      },
+      "predictions": {
+        "status": "ready",
+        "reason": null
+      },
+      "insights": {
+        "status": "ready",
+        "reason": null
+      },
+      "sectors": {
+        "status": "ready",
+        "reason": null
+      }
+    }
+  },
+  "profile": {
+    "customer_id": "synthetic-customer-00",
+    "display_name": "Synthetic account 00",
+    "name_source": "identifier",
+    "industry_id": "synthetic-a",
+    "industry_label": "Synthetic sector A"
+  },
+  "history": [
+    {
+      "customer_id": "synthetic-customer-00",
+      "month": "2023-09",
+      "calibration_events": 2,
+      "distinct_instruments": 2,
+      "equipment_group_count": 1,
+      "lab_count": 1
+    },
+    {
+      "customer_id": "synthetic-customer-00",
+      "month": "2023-10",
+      "calibration_events": 0,
+      "distinct_instruments": 0,
+      "equipment_group_count": 0,
+      "lab_count": 0
+    },
+    {
+      "customer_id": "synthetic-customer-00",
+      "month": "2023-11",
+      "calibration_events": 2,
+      "distinct_instruments": 2,
+      "equipment_group_count": 1,
+      "lab_count": 1
+    },
+    {
+      "customer_id": "synthetic-customer-00",
+      "month": "2023-12",
+      "calibration_events": 0,
+      "distinct_instruments": 0,
+      "equipment_group_count": 0,
+      "lab_count": 0
+    },
+    {
+      "customer_id": "synthetic-customer-00",
+      "month": "2024-01",
+      "calibration_events": 2,
+      "distinct_instruments": 2,
+      "equipment_group_count": 1,
+      "lab_count": 1
+    },
+    {
+      "customer_id": "synthetic-customer-00",
+      "month": "2024-02",
+      "calibration_events": 0,
+      "distinct_instruments": 0,
+      "equipment_group_count": 0,
+      "lab_count": 0
+    },
+    {
+      "customer_id": "synthetic-customer-00",
+      "month": "2024-03",
+      "calibration_events": 2,
+      "distinct_instruments": 2,
+      "equipment_group_count": 1,
+      "lab_count": 1
+    },
+    {
+      "customer_id": "synthetic-customer-00",
+      "month": "2024-04",
+      "calibration_events": 0,
+      "distinct_instruments": 0,
+      "equipment_group_count": 0,
+      "lab_count": 0
+    },
+    {
+      "customer_id": "synthetic-customer-00",
+      "month": "2024-05",
+      "calibration_events": 2,
+      "distinct_instruments": 2,
+      "equipment_group_count": 1,
+      "lab_count": 1
+    },
+    {
+      "customer_id": "synthetic-customer-00",
+      "month": "2024-06",
+      "calibration_events": 0,
+      "distinct_instruments": 0,
+      "equipment_group_count": 0,
+      "lab_count": 0
+    },
+    {
+      "customer_id": "synthetic-customer-00",
+      "month": "2024-07",
+      "calibration_events": 2,
+      "distinct_instruments": 2,
+      "equipment_group_count": 1,
+      "lab_count": 1
+    },
+    {
+      "customer_id": "synthetic-customer-00",
+      "month": "2024-08",
+      "calibration_events": 0,
+      "distinct_instruments": 0,
+      "equipment_group_count": 0,
+      "lab_count": 0
+    },
+    {
+      "customer_id": "synthetic-customer-00",
+      "month": "2024-09",
+      "calibration_events": 2,
+      "distinct_instruments": 2,
+      "equipment_group_count": 1,
+      "lab_count": 1
+    },
+    {
+      "customer_id": "synthetic-customer-00",
+      "month": "2024-10",
+      "calibration_events": 0,
+      "distinct_instruments": 0,
+      "equipment_group_count": 0,
+      "lab_count": 0
+    },
+    {
+      "customer_id": "synthetic-customer-00",
+      "month": "2024-11",
+      "calibration_events": 2,
+      "distinct_instruments": 2,
+      "equipment_group_count": 1,
+      "lab_count": 1
+    },
+    {
+      "customer_id": "synthetic-customer-00",
+      "month": "2024-12",
+      "calibration_events": 0,
+      "distinct_instruments": 0,
+      "equipment_group_count": 0,
+      "lab_count": 0
+    },
+    {
+      "customer_id": "synthetic-customer-00",
+      "month": "2025-01",
+      "calibration_events": 2,
+      "distinct_instruments": 2,
+      "equipment_group_count": 1,
+      "lab_count": 1
+    },
+    {
+      "customer_id": "synthetic-customer-00",
+      "month": "2025-02",
+      "calibration_events": 0,
+      "distinct_instruments": 0,
+      "equipment_group_count": 0,
+      "lab_count": 0
+    },
+    {
+      "customer_id": "synthetic-customer-00",
+      "month": "2025-03",
+      "calibration_events": 2,
+      "distinct_instruments": 2,
+      "equipment_group_count": 1,
+      "lab_count": 1
+    },
+    {
+      "customer_id": "synthetic-customer-00",
+      "month": "2025-04",
+      "calibration_events": 0,
+      "distinct_instruments": 0,
+      "equipment_group_count": 0,
+      "lab_count": 0
+    },
+    {
+      "customer_id": "synthetic-customer-00",
+      "month": "2025-05",
+      "calibration_events": 2,
+      "distinct_instruments": 2,
+      "equipment_group_count": 1,
+      "lab_count": 1
+    },
+    {
+      "customer_id": "synthetic-customer-00",
+      "month": "2025-06",
+      "calibration_events": 0,
+      "distinct_instruments": 0,
+      "equipment_group_count": 0,
+      "lab_count": 0
+    },
+    {
+      "customer_id": "synthetic-customer-00",
+      "month": "2025-07",
+      "calibration_events": 2,
+      "distinct_instruments": 2,
+      "equipment_group_count": 1,
+      "lab_count": 1
+    },
+    {
+      "customer_id": "synthetic-customer-00",
+      "month": "2025-08",
+      "calibration_events": 0,
+      "distinct_instruments": 0,
+      "equipment_group_count": 0,
+      "lab_count": 0
+    },
+    {
+      "customer_id": "synthetic-customer-00",
+      "month": "2025-09",
+      "calibration_events": 2,
+      "distinct_instruments": 2,
+      "equipment_group_count": 1,
+      "lab_count": 1
+    },
+    {
+      "customer_id": "synthetic-customer-00",
+      "month": "2025-10",
+      "calibration_events": 0,
+      "distinct_instruments": 0,
+      "equipment_group_count": 0,
+      "lab_count": 0
+    },
+    {
+      "customer_id": "synthetic-customer-00",
+      "month": "2025-11",
+      "calibration_events": 2,
+      "distinct_instruments": 2,
+      "equipment_group_count": 1,
+      "lab_count": 1
+    },
+    {
+      "customer_id": "synthetic-customer-00",
+      "month": "2025-12",
+      "calibration_events": 0,
+      "distinct_instruments": 0,
+      "equipment_group_count": 0,
+      "lab_count": 0
+    },
+    {
+      "customer_id": "synthetic-customer-00",
+      "month": "2026-01",
+      "calibration_events": 2,
+      "distinct_instruments": 2,
+      "equipment_group_count": 1,
+      "lab_count": 1
+    },
+    {
+      "customer_id": "synthetic-customer-00",
+      "month": "2026-02",
+      "calibration_events": 0,
+      "distinct_instruments": 0,
+      "equipment_group_count": 0,
+      "lab_count": 0
+    },
+    {
+      "customer_id": "synthetic-customer-00",
+      "month": "2026-03",
+      "calibration_events": 0,
+      "distinct_instruments": 0,
+      "equipment_group_count": 0,
+      "lab_count": 0
+    },
+    {
+      "customer_id": "synthetic-customer-00",
+      "month": "2026-04",
+      "calibration_events": 0,
+      "distinct_instruments": 0,
+      "equipment_group_count": 0,
+      "lab_count": 0
+    },
+    {
+      "customer_id": "synthetic-customer-00",
+      "month": "2026-05",
+      "calibration_events": 0,
+      "distinct_instruments": 0,
+      "equipment_group_count": 0,
+      "lab_count": 0
+    },
+    {
+      "customer_id": "synthetic-customer-00",
+      "month": "2026-06",
+      "calibration_events": 0,
+      "distinct_instruments": 0,
+      "equipment_group_count": 0,
+      "lab_count": 0
+    },
+    {
+      "customer_id": "synthetic-customer-00",
+      "month": "2026-07",
+      "calibration_events": 0,
+      "distinct_instruments": 0,
+      "equipment_group_count": 0,
+      "lab_count": 0
+    },
+    {
+      "customer_id": "synthetic-customer-00",
+      "month": "2026-08",
+      "calibration_events": 0,
+      "distinct_instruments": 0,
+      "equipment_group_count": 0,
+      "lab_count": 0
+    }
+  ],
+  "portfolio": [
+    {
+      "customer_id": "synthetic-customer-00",
+      "group_id": "synthetic-group-a",
+      "group_label": "Synthetic category A",
+      "distinct_instruments": null,
+      "calibration_events": 2,
+      "window_start": "2025-09-01",
+      "window_end": "2026-08-31"
+    }
+  ],
+  "requirements": [
+    {
+      "id": "synthetic-req-0",
+      "customer_id": "synthetic-customer-00",
+      "instrument_id": "synthetic-inst-active",
+      "group_id": "synthetic-group-a",
+      "kind": "recorded",
+      "window_start": "2026-10-15",
+      "window_end": "2026-10-15",
+      "method": "synthetic_recorded_due_date",
+      "evidence_dates": [
+        "2026-02-15",
+        "2026-10-15"
+      ],
+      "positive_gap_count": 0,
+      "stopped": false,
+      "eligibility": "eligible",
+      "unknowns": []
+    }
+  ],
+  "prediction": {
+    "snapshot_id": "synthetic-analytics-demo-v1",
+    "customer_id": "synthetic-customer-00",
+    "reference_date": "2026-08-31",
+    "segment_id": "segment-4",
+    "activity": {
+      "target": "any_calibration_next_3_months",
+      "probability": 0.9999999999998515,
+      "window_start": "2026-09",
+      "window_end": "2026-11",
+      "model_version": "analytics-v2",
+      "support": {
+        "status": "supported",
+        "reason": null,
+        "history_months": 36,
+        "active_months": 15
+      }
+    },
+    "calibration_volume": {
+      "metric": "calibration_events",
+      "horizon_months": 3,
+      "window_start": "2026-09",
+      "window_end": "2026-11",
+      "expected_total": 4.0,
+      "lower": null,
+      "upper": null,
+      "interval_level": null,
+      "monthly": null,
+      "method": "same_3_months_last_year",
+      "model_version": "analytics-v2",
+      "support": {
+        "status": "supported",
+        "reason": null,
+        "history_months": 36,
+        "active_months": 15
+      }
+    },
+    "recency_months": 7,
+    "cadence_months": 2.0,
+    "inactivity": {
+      "flagged": true,
+      "recency_to_cadence": 3.5,
+      "recent_volume": 0,
+      "baseline_volume": 2.0,
+      "deficit_fraction": 1.0,
+      "rule_version": "inactivity-v1",
+      "reasons": [
+        "Recency exceeds 1.5 times observed median cadence"
+      ],
+      "support": {
+        "status": "supported",
+        "reason": null,
+        "history_months": 36,
+        "active_months": 15
+      }
+    },
+    "explanation": [
+      {
+        "feature": "recent_3_log",
+        "value": 0.0,
+        "contribution": null
+      },
+      {
+        "feature": "previous_3_log",
+        "value": 0.0,
+        "contribution": null
+      },
+      {
+        "feature": "latest_log",
+        "value": 0.0,
+        "contribution": null
+      },
+      {
+        "feature": "recency_months",
+        "value": 7.0,
+        "contribution": null
+      },
+      {
+        "feature": "active_last_6",
+        "value": 0.0,
+        "contribution": null
+      },
+      {
+        "feature": "mean_monthly_log",
+        "value": 0.6061358035703155,
+        "contribution": null
+      },
+      {
+        "feature": "tenure_log",
+        "value": 3.6109179126442243,
+        "contribution": null
+      },
+      {
+        "feature": "group_breadth_log",
+        "value": 0.0,
+        "contribution": null
+      },
+      {
+        "feature": "season_sin",
+        "value": -0.4999999999999997,
+        "contribution": null
+      },
+      {
+        "feature": "season_cos",
+        "value": -0.8660254037844388,
+        "contribution": null
+      },
+      {
+        "feature": "active_fraction",
+        "value": 0.4166666666666667,
+        "contribution": null
+      },
+      {
+        "feature": "cadence_months",
+        "value": 2.0,
+        "contribution": null
+      },
+      {
+        "feature": "gap_variability",
+        "value": 0.0,
+        "contribution": null
+      },
+      {
+        "feature": "recency_to_cadence",
+        "value": 3.5,
+        "contribution": null
+      },
+      {
+        "feature": "volume_momentum",
+        "value": 0.0,
+        "contribution": null
+      }
+    ]
+  },
+  "action": {
+    "snapshot_id": "synthetic-analytics-demo-v1",
+    "customer_id": "synthetic-customer-00",
+    "primary_type": "upcoming",
+    "reasons": [
+      {
+        "id": "synthetic-customer-00:upcoming:synthetic-group-a:2026-10-15:2026-10-15",
+        "type": "upcoming",
+        "title": "1 instrument(s) due \u2014 synthetic-group-a",
+        "explanation": "1 distinct instrument(s) in synthetic-group-a fall in window 2026-10-15\u20262026-10-15 (recorded). Method: synthetic_recorded_due_date. Confirm timing and batch size.",
+        "evidence_refs": [
+          "synthetic-req-0"
+        ],
+        "instrument_ids": [
+          "synthetic-inst-active"
+        ],
+        "quantity": 1.0,
+        "quantity_unit": "instruments",
+        "window_start": "2026-10-15",
+        "window_end": "2026-10-15",
+        "status": "review_required",
+        "suppression_reason": null,
+        "unknowns": [
+          "live quotation/contact checks unchecked"
+        ]
+      },
+      {
+        "id": "synthetic-customer-00:inactivity:review",
+        "type": "inactivity",
+        "title": "Unusual inactivity \u2014 review",
+        "explanation": "No expected activity pattern: recency 3.5\u00d7 observed cadence, 100% below baseline (recent 0 vs baseline 2.0). Reasons: Recency exceeds 1.5 times observed median cadence. This is a retention-review signal, not a churn label.",
+        "evidence_refs": [
+          "prediction:synthetic-customer-00:synthetic-analytics-demo-v1"
+        ],
+        "instrument_ids": [],
+        "quantity": 0.0,
+        "quantity_unit": "calibration_events",
+        "window_start": null,
+        "window_end": null,
+        "status": "review_required",
+        "suppression_reason": null,
+        "unknowns": [
+          "alternate explanations unchecked (seasonality, site closure, provider switch)"
+        ]
+      },
+      {
+        "id": "synthetic-customer-00:discovery:synthetic-group-b",
+        "type": "discovery",
+        "title": "Peer category to ask about \u2014 Synthetic category B",
+        "explanation": "24 of 24 peer accounts (100%) in this industry calibrate Synthetic category B. Ask whether Synthetic category B equipment is used on site or calibrated elsewhere \u2014 do not assume ownership. (window 2025-09-01\u20262026-08-31).",
+        "evidence_refs": [
+          "peer:synthetic-a:synthetic-group-b"
+        ],
+        "instrument_ids": [],
+        "quantity": 1.0,
+        "quantity_unit": "categories",
+        "window_start": null,
+        "window_end": null,
+        "status": "review_required",
+        "suppression_reason": null,
+        "unknowns": [
+          "customer use of this category is unknown"
+        ]
+      }
+    ],
+    "priority_score": 89.5,
+    "components": {
+      "timing": 0.7,
+      "quantity": 1.0,
+      "activity_deviation": 1.0,
+      "evidence": 1.0
+    },
+    "ranking_version": "rank-v1",
+    "weights": {
+      "timing": 0.35,
+      "quantity": 0.3,
+      "activity_deviation": 0.2,
+      "evidence": 0.15
+    },
+    "readiness": "review_required",
+    "suggested_next_step": "Confirm timing and batch size for the due window."
+  },
+  "peer_opportunities": [
+    {
+      "group_id": "synthetic-group-b",
+      "group_label": "Synthetic category B",
+      "industry_id": "synthetic-a",
+      "peer_count": 24,
+      "peers_with_group": 24,
+      "prevalence": 1.0,
+      "window_start": "2025-09-01",
+      "window_end": "2026-08-31",
+      "question": "24 of 24 peer accounts (100%) in this industry calibrate Synthetic category B. Ask whether Synthetic category B equipment is used on site or calibrated elsewhere \u2014 do not assume ownership.",
+      "evidence_refs": [
+        "peer:synthetic-a:synthetic-group-b"
+      ]
+    }
+  ],
+  "preparation": {
+    "customer_id": "synthetic-customer-00",
+    "reference_date": "2026-08-31",
+    "facts": [
+      {
+        "text": "Synthetic account 00 operates in Synthetic sector A.",
+        "evidence_refs": [
+          "profile:synthetic-customer-00"
+        ]
+      },
+      {
+        "text": "Activity probability 100% for 2026-09\u20262026-11.",
+        "evidence_refs": [
+          "prediction:synthetic-customer-00:synthetic-analytics-demo-v1"
+        ]
+      },
+      {
+        "text": "Flagged for unusual inactivity review: Recency exceeds 1.5 times observed median cadence",
+        "evidence_refs": [
+          "prediction:synthetic-customer-00:synthetic-analytics-demo-v1"
+        ]
+      },
+      {
+        "text": "1 instrument(s) due \u2014 synthetic-group-a: 1 distinct instrument(s) in synthetic-group-a fall in window 2026-10-15\u20262026-10-15 (recorded). Method: synthetic_recorded_due_date. Confirm timing and batch size.",
+        "evidence_refs": [
+          "synthetic-req-0"
+        ]
+      },
+      {
+        "text": "Unusual inactivity \u2014 review: No expected activity pattern: recency 3.5\u00d7 observed cadence, 100% below baseline (recent 0 vs baseline 2.0). Reasons: Recency exceeds 1.5 times observed median cadence. This is a retention-review signal, not a churn label.",
+        "evidence_refs": [
+          "prediction:synthetic-customer-00:synthetic-analytics-demo-v1"
+        ]
+      },
+      {
+        "text": "Peer category to ask about \u2014 Synthetic category B: 24 of 24 peer accounts (100%) in this industry calibrate Synthetic category B. Ask whether Synthetic category B equipment is used on site or calibrated elsewhere \u2014 do not assume ownership. (window 2025-09-01\u20262026-08-31).",
+        "evidence_refs": [
+          "peer:synthetic-a:synthetic-group-b"
+        ]
+      }
+    ],
+    "unknowns": [
+      "live quotation/contact checks unchecked",
+      "alternate explanations unchecked (seasonality, site closure, provider switch)",
+      "customer use of this category is unknown",
+      "live quotation status unchecked",
+      "recent contact unchecked",
+      "contact details unchecked"
+    ],
+    "questions": [
+      "24 of 24 peer accounts (100%) in this industry calibrate Synthetic category B. Ask whether Synthetic category B equipment is used on site or calibrated elsewhere \u2014 do not assume ownership.",
+      "Can you confirm the timing and batch size for 1 instrument(s) due 2026-10-15\u20262026-10-15?",
+      "Was the usual calibration batch delayed, reduced, or moved to another provider?"
+    ],
+    "suggested_next_step": "Confirm timing and batch size for the due window."
+  },
+  "workflow": {
+    "account_owner": null,
+    "checks": {
+      "quotation_order": "unknown",
+      "recent_contact": "unknown",
+      "contact_details": "unknown",
+      "checked_at": null,
+      "checked_by": null
+    },
+    "suppressions": [],
+    "followups": []
+  }
+}
