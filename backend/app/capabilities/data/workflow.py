@@ -84,10 +84,12 @@ def _save_state(conn, customer_id: str, state: dict) -> None:
 
 
 def _followups_for(conn, customer_id: str) -> list[dict]:
+    rows = conn.execute("SELECT payload FROM followups").fetchall()
     return [
-        json.loads(r["payload"])
-        for r in conn.execute("SELECT payload FROM followups ORDER BY payload")
-        if json.loads(r["payload"]).get("customer_id") == customer_id
+        payload
+        for row in rows
+        for payload in [json.loads(row["payload"])]
+        if payload.get("customer_id") == customer_id
     ]
 
 
