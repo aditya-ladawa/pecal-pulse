@@ -6,11 +6,7 @@ import {
   LayoutDashboard,
   UsersRound,
   ListTodo,
-  PanelLeftClose,
-  PanelLeftOpen,
   Sparkles,
-  ArrowUpRight,
-  FlaskConical,
   Check,
   X,
 } from "lucide-react";
@@ -36,11 +32,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     v2Error = useSalesStore((s) => s.v2Error);
   const pathname = usePathname(),
     router = useRouter(),
-    collapsed = useSalesStore((s) => s.sidebarCollapsed),
     assistantOpen = useSalesStore((s) => s.assistantOpen),
     request = useSalesStore((s) => s.requestedPage),
     notice = useSalesStore((s) => s.notice),
-    status = useSalesStore((s) => s.apiStatus),
     openTasks = useSalesStore(
       (s) => s.data.followups.filter((f) => f.status === "open").length,
     ),
@@ -85,9 +79,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <SalesAssistantProvider>
       <div
-        className={`app-shell ${collapsed ? "collapsed" : ""} ${assistantOpen ? "assistant-open" : ""}`}
+        className={`app-shell horizontal-shell ${assistantOpen ? "assistant-open" : ""}`}
       >
-        <aside className="sidebar">
+        <header className="workspace-topnav">
           <Link href="/" className="brand" aria-label="PeCal Pulse dashboard">
             <span className="brand-icon">
               p<span />
@@ -96,98 +90,33 @@ export function AppShell({ children }: { children: ReactNode }) {
               PeCal<span>pulse</span>
             </span>
           </Link>
-          <button
-            className="collapse-button"
-            onClick={() => set({ sidebarCollapsed: !collapsed })}
-            aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
-          >
-            {collapsed ? (
-              <PanelLeftOpen size={18} />
-            ) : (
-              <PanelLeftClose size={18} />
-            )}
-          </button>
-          <div className="nav-label">YOUR WORKSPACE</div>
           <nav aria-label="Main navigation">
             {nav.map((n) => (
               <Link
                 key={n.href}
                 href={n.href}
                 className={`nav-link ${pathname === n.href ? "active" : ""}`}
-                title={n.label}
+                aria-current={pathname === n.href ? "page" : undefined}
               >
-                <n.icon size={19} />
+                <n.icon size={18} />
                 <span>{n.label}</span>
-                {n.href === "/follow-ups" && <i>{openTasks}</i>}
+                {n.href === "/follow-ups" && v2 && openTasks > 0 && (
+                  <i>{openTasks}</i>
+                )}
               </Link>
             ))}
           </nav>
-          <div className="sidebar-bottom">
-            <div className="help-card">
-              <span className="tiny-spark">
-                <Sparkles size={19} />
-              </span>
-              <h3>A clearer next step.</h3>
-              <p>Ask Pulse to help you explore your customer workspace.</p>
-              <button onClick={() => set({ assistantOpen: true })}>
-                Meet your assistant <ArrowUpRight size={15} />
-              </button>
-            </div>
-            <div className="profile">
-              <div className="profile-avatar">AM</div>
-              <div>
-                <strong>Alex Meyer</strong>
-                <small>Demo representative</small>
-              </div>
-            </div>
-          </div>
-        </aside>
+          <button
+            className="topnav-assistant"
+            onClick={() => set({ assistantOpen: !assistantOpen })}
+            aria-label="Toggle sales assistant"
+            aria-expanded={assistantOpen}
+          >
+            <Sparkles size={17} />
+            <span>Ask Pulse</span>
+          </button>
+        </header>
         <main className="main">
-          <header className="topbar">
-            <div className="breadcrumb">
-              Workspace <span>/</span>{" "}
-              <strong>
-                {nav.find((n) => n.href === pathname)?.label || "Dashboard"}
-              </strong>
-            </div>
-            <div className="topbar-right">
-              <span className={`connection ${status}`}>
-                <i />
-                {status === "connected"
-                  ? "Local API connected"
-                  : status === "offline"
-                    ? "Offline preview"
-                    : "Connecting API"}
-              </span>
-              <span className="date-pill">07 Oct 2026</span>
-              <button
-                className="profile-avatar small-profile"
-                onClick={() => set({ assistantOpen: !assistantOpen })}
-                aria-label="Toggle sales assistant"
-              >
-                AM
-              </button>
-            </div>
-          </header>
-          <div className="mock-banner">
-            <FlaskConical size={14} />
-            <span>
-              <strong>
-                {v2?.metadata.mode === "historical"
-                  ? "Historical workspace"
-                  : v2
-                    ? "Synthetic workspace"
-                    : "Loading workspace"}
-              </strong>{" "}
-              · History reference: {v2?.metadata.reference_date || "Loading…"}.{" "}
-              {v2?.metadata.mode === "historical"
-                ? "Source extract, not live quotations or orders."
-                : v2
-                  ? "Generated demo data; not historical evidence."
-                  : "Loading source metadata."}
-            </span>
-            <span className="preview-tag">UI preview</span>
-          </div>
           <div className="page-content">
             {v2 ? (
               <IntegratedWorkspace />
@@ -199,10 +128,6 @@ export function AppShell({ children }: { children: ReactNode }) {
               </div>
             )}
           </div>
-          <footer className="workspace-footer">
-            Built for better customer conversations.
-            <span>PeCal Pulse · Challenge 02 · Prototype</span>
-          </footer>
         </main>
         <SalesAssistant />
         {notice && (

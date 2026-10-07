@@ -200,7 +200,7 @@ export function IntegratedWorkspace() {
     return (
       <>
         <Heading
-          title="Keep the next step moving."
+          title="Follow-ups"
           text="Agreed follow-ups, persisted locally and separate from the SQL source."
         />
         <Card>
@@ -255,7 +255,7 @@ export function IntegratedWorkspace() {
     return (
       <>
         <Heading
-          title="Customer workspace."
+          title="Customers"
           text="Explore actual history, model support and evidence before taking action."
         />
         <div className="filters integrated-filters">
@@ -401,7 +401,7 @@ export function IntegratedWorkspace() {
   return (
     <>
       <Heading
-        title="Your next conversation."
+        title="Dashboard"
         text="A ranked shortlist supported by historical evidence and explicit unknowns."
       />
       <div className="metrics">
@@ -659,9 +659,7 @@ function Heading({ title, text }: { title: string; text: string }) {
   return (
     <div className="page-heading">
       <div>
-        <div className="eyebrow">EVIDENCE INTO ACTION</div>
         <h1>{title}</h1>
-        <p>{text}</p>
       </div>
     </div>
   );
