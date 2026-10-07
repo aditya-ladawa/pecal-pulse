@@ -39,9 +39,7 @@ def _metadata(snapshot_id: str) -> v2.ResponseMetadata:
             "predictions": v2.ModuleReadiness(
                 status="unavailable", reason="analytics module not merged"
             ),
-            "insights": v2.ModuleReadiness(
-                status="unavailable", reason="sales-intelligence module not merged"
-            ),
+            "insights": v2.ModuleReadiness(status="ready"),
             "sectors": v2.ModuleReadiness(
                 status="unavailable", reason="analytics module not merged"
             ),
@@ -77,6 +75,7 @@ def bootstrap(snapshot_id: str = DEFAULT_SNAPSHOT):
         (f for f in data.list_followups_v2() if f.status == "open"),
         key=lambda f: f.due_date,
     )
+    _, proactive = data.split_queue(snapshot_id, WORKFLOW_TODAY)
     return {
         "metadata": _metadata(snapshot_id).model_dump(),
         "filter_options": {
@@ -93,7 +92,7 @@ def bootstrap(snapshot_id: str = DEFAULT_SNAPSHOT):
             "open_followups": {"value": len(open_followups), "unit": "followups"},
             "reference_date": manifest.reference_date,
         },
-        "actions": [],
+        "actions": [a.model_dump() for a in proactive[:10]],
         "due_followups": [f.model_dump() for f in open_followups[:10]],
         "sectors": None,
     }
@@ -111,14 +110,6 @@ def list_customers(
     offset: int = 0,
 ):
     _require_snapshot(snapshot_id)
-    if action is not None:
-        raise HTTPException(
-            503, "Action filtering needs the sales-intelligence module (not merged)"
-        )
-    if sort == "priority":
-        raise HTTPException(
-            503, "Priority sort needs the sales-intelligence module (not merged)"
-        )
     if not 1 <= limit <= 100:
         raise HTTPException(422, "limit must be within 1..100")
     if offset < 0:
@@ -126,6 +117,19 @@ def list_customers(
     profiles = data.list_customers(snapshot_id)
     if industry_id:
         profiles = [p for p in profiles if (p.industry_id or "unknown") == industry_id]
+    queue = data.ranked_queue(snapshot_id, WORKFLOW_TODAY)
+    actions_by_customer = {a.customer_id: a for a in queue}
+    if action is not None:
+        profiles = [
+            p
+            for p in profiles
+            if any(
+                r.type == action
+                for a in [actions_by_customer.get(p.customer_id)]
+                if a is not None
+                for r in a.reasons
+            )
+        ]
     if segment_id:
         profiles = []  # no segments published yet; empty match, not an error
     if query:
@@ -135,13 +139,25 @@ def list_customers(
             for p in profiles
             if needle in (p.display_name + " " + p.customer_id).lower()
         ]
-    profiles = sorted(profiles, key=lambda p: p.display_name.lower())
+    if sort == "priority":
+        profiles = sorted(
+            profiles,
+            key=lambda p: (
+                -actions_by_customer[p.customer_id].priority_score
+                if p.customer_id in actions_by_customer
+                else float("inf"),
+                p.customer_id,
+            ),
+        )
+    else:
+        profiles = sorted(profiles, key=lambda p: p.display_name.lower())
     total = len(profiles)
     return {
         "metadata": _metadata(snapshot_id).model_dump(),
         "items": [
             v2.CustomerSummary(
                 profile=p,
+                primary_action=actions_by_customer.get(p.customer_id),
                 recency_months=_recency(snapshot_id, p.customer_id),
             ).model_dump()
             for p in profiles[offset : offset + limit]
@@ -160,6 +176,7 @@ def customer_detail(customer_id: str, snapshot_id: str = DEFAULT_SNAPSHOT):
     except ValueError:
         raise HTTPException(404, f"Unknown customer: {customer_id}")
     manifest = data.get_manifest(snapshot_id)
+    action = data.action_for_customer(snapshot_id, customer_id, WORKFLOW_TODAY)
     return {
         "metadata": _metadata(snapshot_id).model_dump(),
         "profile": detail["profile"].model_dump(),
@@ -167,16 +184,12 @@ def customer_detail(customer_id: str, snapshot_id: str = DEFAULT_SNAPSHOT):
         "portfolio": [p.model_dump() for p in detail["portfolio"]],
         "requirements": [r.model_dump() for r in detail["requirements"]],
         "prediction": None,
-        "action": None,
-        "peer_opportunities": [],
-        "preparation": v2.PreparationCard(
-            customer_id=customer_id,
-            reference_date=manifest.reference_date,
-            unknowns=[
-                "Ranked actions need the sales-intelligence module (not merged)",
-                "Peer opportunities need the sales-intelligence module (not merged)",
-            ],
-            suggested_next_step="Review the requirement evidence below and record any outcome as a follow-up.",
+        "action": action.model_dump() if action is not None else None,
+        "peer_opportunities": [
+            p.model_dump() for p in data.peers_for_customer(snapshot_id, customer_id)
+        ],
+        "preparation": data.preparation_for_customer(
+            snapshot_id, customer_id, WORKFLOW_TODAY
         ).model_dump(),
         "workflow": data.get_workflow(customer_id).model_dump(),
     }

@@ -38,9 +38,10 @@ class V2ApiTests(unittest.TestCase):
         modules = body["metadata"]["modules"]
         self.assertEqual(modules["data"]["status"], "ready")
         self.assertEqual(modules["predictions"]["status"], "unavailable")
-        self.assertEqual(modules["insights"]["status"], "unavailable")
+        self.assertEqual(modules["insights"]["status"], "ready")
         self.assertEqual(body["kpis"]["customers"]["value"], 3)
-        self.assertEqual(body["actions"], [])
+        self.assertEqual(len(body["actions"]), 2)
+        self.assertEqual(body["actions"][0]["customer_id"], "SYN-001")
 
     def test_unknown_snapshot_is_404(self):
         res = self.client.get("/api/v2/bootstrap", params={"snapshot_id": "nope"})
@@ -76,11 +77,17 @@ class V2ApiTests(unittest.TestCase):
         )
         self.assertEqual((res.status_code, res.json()["items"]), (200, []))
 
-    def test_action_filter_needs_insights_module(self):
+    def test_action_filter_matches_reason_types(self):
         res = self.client.get(
             "/api/v2/customers", params={"snapshot_id": SNAPSHOT, "action": "upcoming"}
         )
-        self.assertEqual(res.status_code, 503)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()["total"], 2)
+        res = self.client.get(
+            "/api/v2/customers", params={"snapshot_id": SNAPSHOT, "action": "discovery"}
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()["total"], 0)
 
     def test_customer_detail_sections(self):
         res = self.client.get("/api/v2/customers/SYN-001", params={"snapshot_id": SNAPSHOT})
@@ -90,9 +97,13 @@ class V2ApiTests(unittest.TestCase):
         self.assertEqual(len(body["history"]), 3)
         self.assertEqual(len(body["portfolio"]), 2)
         self.assertIsNone(body["prediction"])
-        self.assertIsNone(body["action"])
+        action = body["action"]
+        self.assertIsNotNone(action)
+        self.assertEqual(action["customer_id"], "SYN-001")
+        self.assertTrue(action["reasons"])
         self.assertEqual(body["peer_opportunities"], [])
-        self.assertTrue(body["preparation"]["unknowns"])
+        self.assertTrue(body["preparation"]["facts"])
+        self.assertTrue(body["preparation"]["suggested_next_step"])
         self.assertIn("workflow", body)
 
     def test_sectors_and_model_report_unavailable(self):
