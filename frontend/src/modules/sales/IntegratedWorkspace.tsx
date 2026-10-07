@@ -16,7 +16,7 @@ import { Chart, ArtifactChart } from "@/modules/artifacts/Chart";
 import { Card, InfoHint } from "@/components/ui/Primitives";
 import type { Bootstrap, Detail } from "@/types/sales-v2";
 import type { EventEnvelope, PageSnapshot } from "@/types/sales";
-import { CustomerSignals } from "./CustomerSignals";
+import { BatchReasonSummary, CustomerSignals } from "./CustomerSignals";
 const count = (value: number | null | undefined) =>
   value == null
     ? "Unavailable"
@@ -813,7 +813,11 @@ export function CustomerEvidence({
           <CustomerSignals detail={d} />
           <Card>
             <details>
-              <summary>Review individual equipment items</summary>
+              <summary>Review batches and update their status</summary>
+              <p className="batch-guidance">
+                Confirm timing and whether the work is already handled. Update
+                only the relevant batch.
+              </p>
               {d.action && d.action.reasons.length > 5 && (
                 <button
                   className="button"
@@ -828,14 +832,9 @@ export function CustomerEvidence({
                 d.action.reasons
                   .slice(0, showAllReasons ? undefined : 5)
                   .map((r) => (
-                    <div className="integrated-reason" key={r.id}>
-                      <strong>{r.title}</strong>
-                      <p>{r.explanation}</p>
-                      <small>
-                        Quantity: {count(r.quantity)} {r.quantity_unit} ·{" "}
-                        {r.unknowns.join(" · ")}
-                      </small>
-                      <div className="integrated-pagination">
+                    <div className="batch-review" key={r.id}>
+                      <BatchReasonSummary detail={d} reason={r} />
+                      <div className="batch-actions">
                         <button
                           className="button"
                           disabled={pending}

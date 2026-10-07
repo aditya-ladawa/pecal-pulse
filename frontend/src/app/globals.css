@@ -2956,6 +2956,46 @@ details[open] > summary > .disclosure-chevron {
 .sales-signal ul {
   margin: 6px 0;
 }
+.batch-guidance {
+  font-size: 13px;
+  color: var(--text-muted, #718065);
+}
+.batch-review {
+  margin-top: 14px;
+  padding: 16px;
+  border: 1px solid #e5eadf;
+  border-radius: 18px;
+  background: #fafbf7;
+}
+.batch-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+.batch-quantity {
+  min-width: 82px;
+  padding: 10px;
+  border-radius: 14px;
+  background: #eef2e5;
+  text-align: center;
+}
+.batch-quantity strong { display: block; font-size: 28px; line-height: 1.1; }
+.batch-quantity small { font-size: 11px; }
+.batch-context { flex: 1; min-width: 0; }
+.batch-context > strong { display: block; overflow-wrap: anywhere; }
+.batch-context > span { display: block; margin-top: 5px; font-size: 13px; }
+.batch-tags { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 9px; }
+.batch-status { border-radius: 8px; padding: 4px 8px; font-size: 11px; background: #e9efdf; }
+.batch-status.review { background: #faead9; color: #805a33; }
+.batch-tags small { font-size: 11px; color: #718065; }
+.batch-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.batch-actions .button { padding: 7px 11px; font-size: 12px; }
+@media (max-width: 600px) {
+  .batch-review { padding: 12px; }
+  .batch-summary { gap: 10px; }
+  .batch-quantity { min-width: 65px; }
+  .batch-quantity strong { font-size: 24px; }
+}
 .customer-signals .integrated-table {
   max-height: none;
 }
