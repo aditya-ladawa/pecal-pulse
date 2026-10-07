@@ -70,6 +70,25 @@ def _base(snapshot_id, filters, allow_fit=False):
     return cache[key]
 
 
+def _account_action(snapshot_id, row, requirements, state, stats, today):
+    local = insights.build_account_action(snapshot_id=snapshot_id, customer_id=row['profile'].customer_id,
+        requirements=[compat.requirement_from_shared(r) for r in requirements],
+        prediction=compat.prediction_from_shared(row['prediction']) if row['prediction'] else None,
+        peer_opportunities=compat.peers_from_shared(row['peers']),
+        workflow=compat.workflow_from_shared(state), stats=stats, today=today)
+    return v2.AccountAction.model_validate(compat.action_to_shared_payload(local)) if local else None
+
+
+def scoped_customer_action(snapshot_id, customer_id, filters, today):
+    rows, _, _ = _base(snapshot_id, filters)
+    row = next(r for r in rows if r['profile'].customer_id == customer_id)
+    state = workflow.get_workflow(customer_id)
+    reference = service.get_manifest(snapshot_id).reference_date
+    requirements = features.due_requirements(row['requirements'], reference, filters.window_days,
+        filters.include_inferred, filters.include_past_due, composition._suppressed_ids(state, today))
+    return _account_action(snapshot_id, row, requirements, state, composition.snapshot_stats(snapshot_id), today)
+
+
 def compose(snapshot_id: str, metadata: v2.ResponseMetadata, filters: OpportunityFilters,
             cluster_id: str | None = None, display_limit=200, limit=10, offset=0,
             scenario: ScenarioAssumptions | None = None) -> OpportunityResponse:
@@ -106,12 +125,7 @@ def compose(snapshot_id: str, metadata: v2.ResponseMetadata, filters: Opportunit
         suppressed = composition._suppressed_ids(state, metadata.workflow_today)
         reqs = features.due_requirements(row['requirements'], metadata.reference_date,
                     filters.window_days, filters.include_inferred, filters.include_past_due, suppressed)
-        local_action = insights.build_account_action(snapshot_id=snapshot_id, customer_id=cid,
-            requirements=[compat.requirement_from_shared(r) for r in reqs],
-            prediction=compat.prediction_from_shared(pred) if pred else None,
-            peer_opportunities=compat.peers_from_shared(row['peers']),
-            workflow=compat.workflow_from_shared(state), stats=stats, today=metadata.workflow_today)
-        action = v2.AccountAction.model_validate(compat.action_to_shared_payload(local_action)) if local_action else None
+        action = _account_action(snapshot_id, row, reqs, state, stats, metadata.workflow_today)
         reason_types = list(dict.fromkeys(r.type for r in action.reasons)) if action else []
         prediction = pred
         if pred and f'{cid}:inactivity:review' in suppressed:

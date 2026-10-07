@@ -51,6 +51,18 @@ class OpportunityTests(unittest.TestCase):
         stopped = near.model_copy(update={'stopped':True,'eligibility':'excluded'})
         self.assertEqual(due_requirements([inferred,stopped], '2026-08-31',90),[])
 
+    def test_customer_preparation_respects_dashboard_past_due_setting(self):
+        snapshot = service.load_snapshot('synthetic-v1')
+        base = next(r for r in snapshot['requirements'] if r.customer_id == 'SYN-001' and r.kind == 'recorded')
+        snapshot['requirements'].append(base.model_copy(update={'id':'PAST-EVIDENCE', 'instrument_id':'PAST-INSTRUMENT',
+            'window_start':'2026-08-15', 'window_end':'2026-08-15', 'stopped':False, 'eligibility':'eligible'}))
+        def ids(past):
+            response = self.client.get('/api/v2/customers/SYN-001', params={'snapshot_id':'synthetic-v1', 'window_days':90, 'include_past_due':past})
+            self.assertEqual(response.status_code,200,response.text)
+            return {i for r in (response.json()['action'] or {}).get('reasons',[]) for i in r['instrument_ids']}
+        self.assertNotIn('PAST-INSTRUMENT',ids(False))
+        self.assertIn('PAST-INSTRUMENT',ids(True))
+
     def test_unknown_forecasts_remain_null_and_financial_inputs_validate(self):
         body = self.get(unit_contribution=15, assumption_source='User scenario')
         self.assertIsNone(body['scenario']['estimated_contribution'])

@@ -188,14 +188,22 @@ def list_customers(
 
 
 @router.get("/customers/{customer_id}")
-def customer_detail(customer_id: str, snapshot_id: str = DEFAULT_SNAPSHOT):
+def customer_detail(customer_id: str, snapshot_id: str = DEFAULT_SNAPSHOT, window_days: int | None = None,
+                    include_past_due: bool = False, include_inferred: bool = True):
     _require_snapshot(snapshot_id)
     try:
         detail = data.get_customer_detail(snapshot_id, customer_id, full_evidence=True)
     except ValueError:
         raise HTTPException(404, f"Unknown customer: {customer_id}")
     manifest = data.get_manifest(snapshot_id)
-    action = data.action_for_customer(snapshot_id, customer_id, WORKFLOW_TODAY)
+    action = data.action_for_customer(snapshot_id, customer_id, WORKFLOW_TODAY) if window_days is None else None
+    if window_days is not None:
+        if window_days not in (30, 60, 90):
+            raise HTTPException(422, 'Choose a 30, 60 or 90 day window')
+        from ..capabilities.data.opportunities import scoped_customer_action
+        from ..contracts.opportunities import OpportunityFilters
+        action = scoped_customer_action(snapshot_id, customer_id, OpportunityFilters(window_days=window_days,
+            include_past_due=include_past_due, include_inferred=include_inferred), WORKFLOW_TODAY)
     prediction = analytics_for_snapshot(data.load_snapshot(snapshot_id)).prediction(customer_id)
     return {
         "metadata": _metadata(snapshot_id).model_dump(),
