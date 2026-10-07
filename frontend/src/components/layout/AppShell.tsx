@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   UsersRound,
-  ListTodo,
+  ChartNoAxesCombined,
   Sparkles,
   Check,
   X,
@@ -25,7 +25,7 @@ import {
 const nav = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/customers", label: "Customers", icon: UsersRound },
-  { href: "/follow-ups", label: "Follow-ups", icon: ListTodo },
+  { href: "/insights", label: "Insights", icon: ChartNoAxesCombined },
 ];
 export function AppShell({ children }: { children: ReactNode }) {
   const v2 = useSalesStore((s) => s.v2),
@@ -95,7 +95,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Link
                 key={n.href}
                 href={n.href}
-                className={`nav-link ${pathname === n.href ? "active" : ""}`}
+                className={`nav-link ${pathname === n.href || (n.href === "/customers" && pathname === "/follow-ups") ? "active" : ""}`}
                 aria-current={pathname === n.href ? "page" : undefined}
               >
                 <n.icon size={18} />

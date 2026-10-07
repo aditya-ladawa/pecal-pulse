@@ -5,6 +5,16 @@ import type { EventEnvelope, UiCommand } from "@/types/sales";
 export function dispatchEvent(event: EventEnvelope) {
   const s = useSalesStore.getState();
   switch (event.type) {
+    case "opportunities.filters.set":
+      s.set({
+        opportunityFilters: { ...s.opportunityFilters, ...event.payload },
+        opportunityCluster: null,
+      });
+      break;
+    case "opportunities.cluster.select":
+      s.set({ opportunityCluster: event.payload.cluster_id });
+      break;
+
     case "ui.control.set":
       if (event.payload.control === "customers.tab")
         s.set({ customerTab: event.payload.value });
@@ -21,8 +31,14 @@ export function dispatchEvent(event: EventEnvelope) {
       });
       break;
     case "customers.select":
-      if (s.v2 || s.data.customers.some((c) => c.id === event.payload.customer_id))
-        s.set({ selectedId: event.payload.customer_id });
+      if (
+        s.v2 ||
+        s.data.customers.some((c) => c.id === event.payload.customer_id)
+      )
+        s.set({
+          selectedId: event.payload.customer_id,
+          customerView: "accounts",
+        });
       break;
     case "artifact.created":
       s.set({
@@ -36,6 +52,7 @@ export function dispatchEvent(event: EventEnvelope) {
     case "followup.created":
     case "followup.updated":
       s.set({
+        opportunityRevision: s.opportunityRevision + 1,
         data: {
           ...s.data,
           followups: [

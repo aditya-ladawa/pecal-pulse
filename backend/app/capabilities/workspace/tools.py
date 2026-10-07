@@ -31,15 +31,17 @@ def get_workspace_context(runtime: ToolRuntime[TurnContext]) -> dict:
         segments = for_snapshot(data.load_snapshot(sid)).payload("segments") or []
         return {**workspace, "data_mode": api_v2._mode(sid),
                 "source_reference_date": data.get_manifest(sid).reference_date,
-                "controls": {"pages": ["dashboard", "customers", "follow-ups"],
+                "controls": {"pages": ["dashboard", "customers", "follow-ups", "insights"],
                     "industry": [{"value": i, "label": label} for i, label in sorted({(p.industry_id or "unknown", p.industry_label or "Unknown") for p in profiles})],
                     "segment": [{"value": s["id"], "label": s["label"]} for s in segments],
                     "action": ["all", "upcoming", "inactivity", "discovery"],
                     "customer_tab": ["activity", "portfolio", "next-step"], "action_limit": [5,10,12]},
                 "followups": api_v2.list_followups(sid)["items"] if workspace["page"] == "follow-ups" else [],
-                "chart_views": ["industry", "activity", "portfolio"]}
+                "chart_views": ["industry", "activity", "portfolio", "sector_activity", "sector_outlook", "sector_correlation"],
+                "opportunities": _opportunity_summary(runtime) if workspace["page"] == "dashboard" else None,
+                "insights": {**api_v2.sectors(sid), **api_v2.model_report(sid)} if workspace["page"] == "insights" else None}
     return {**workspace, "data_mode": "mock", "source_reference_date": service.FIXTURE["reference_date"],
-            "controls": {"pages": ["dashboard", "customers", "follow-ups"],
+            "controls": {"pages": ["dashboard", "customers", "follow-ups", "insights"],
                          "industry": ["all", *service.FIXTURE["sector_labels"]],
                          "segment": ["all", "Frequent", "Intermittent", "Occasional"],
                          "action": ["all", "upcoming", "inactivity", "discovery"],
@@ -73,8 +75,8 @@ def get_customer_evidence(runtime: ToolRuntime[TurnContext], customer_id: str = 
     runtime.context.consume()
     if runtime.context.workspace.snapshot_id:
         detail = api_v2.customer_detail(customer_id or runtime.context.workspace.customer_id, runtime.context.workspace.snapshot_id)
-        detail["requirement_count"] = len(detail["requirements"])
-        detail["requirement_tier_counts"] = {kind: sum(r["kind"] == kind for r in detail["requirements"]) for kind in ("recorded", "nominal_interval", "repeat_history", "unknown")}
+        detail["requirement_count"] = sum(detail["requirement_tier_counts"].values())
+        detail["requirement_tier_counts"] = detail["requirement_tier_counts"]
         detail["requirements"] = detail["requirements"][:50]
         detail["requirements_display_limit"] = 50
         detail["history"] = detail["history"][-36:]
@@ -112,8 +114,8 @@ def set_customer_filters(runtime: ToolRuntime[TurnContext], industry: str | None
     return emit(runtime, "customers.filters.set", values)
 
 @tool
-def navigate_workspace(page: Literal["dashboard", "customers", "follow-ups"], runtime: ToolRuntime[TurnContext]) -> dict:
-    """Open one of the three application pages."""
+def navigate_workspace(page: Literal["dashboard", "customers", "follow-ups", "insights"], runtime: ToolRuntime[TurnContext]) -> dict:
+    """Open Dashboard, Customers or Insights; follow-ups remains a compatible legacy route."""
     runtime.context.consume()
     runtime.context.workspace.page = page
     return emit(runtime, "ui.navigate", {"page": page})
@@ -143,16 +145,36 @@ def set_customer_tab(tab: Literal["activity", "portfolio", "next-step"], runtime
 
 @tool
 def set_action_limit(limit: Literal[5, 10, 12], runtime: ToolRuntime[TurnContext]) -> dict:
-    """Set Dashboard opportunity list size to 5, 10 or all 12 demo accounts."""
+    """Set Dashboard shortlist size to 5, 10 or 12 accounts."""
     runtime.context.consume()
     runtime.context.workspace.action_limit = limit
     return emit(runtime, "ui.control.set", {"control": "dashboard.action_limit", "value": limit})
 
 @tool
-def create_chart(view: Literal["industry", "activity", "portfolio"], runtime: ToolRuntime[TurnContext], customer_id: str = "") -> dict:
-    """Create a chart from service data: industry outlook, customer historical activity, or observed portfolio."""
+def create_chart(view: Literal["industry", "activity", "portfolio", "sector_activity", "sector_outlook", "sector_correlation"], runtime: ToolRuntime[TurnContext], customer_id: str = "") -> dict:
+    """Create a supported chart: industry population, customer observed activity/portfolio, sector activity, next-month sector outlook, or movement correlation. Sector correlation is descriptive, not a joint forecast."""
     runtime.context.consume()
     sid = runtime.context.workspace.snapshot_id
+    if sid and view.startswith("sector_"):
+        sectors = api_v2.sectors(sid)["sectors"]
+        if view == "sector_activity":
+            rows = sorted(sectors["history"], key=lambda r: -sum(p["calibration_events"] for p in r["monthly"]))[:5]
+            if not rows: raise ValueError("Sector history unavailable")
+            labels = [p["month"] for p in rows[0]["monthly"]][-50:]
+            datasets = [Dataset(name=r["label"], values=[p["calibration_events"] for p in r["monthly"]][-50:]) for r in rows]
+            chart = ChartArtifact(id=f"{view}-{sid}", title="Observed sector activity · top 5 by historical volume", kind="line", labels=labels, datasets=datasets, unit="calibrations", source=api_v2._mode(sid))
+        elif view == "sector_outlook":
+            forecasts = [r for r in sectors["forecasts"] if r["expected"] is not None]
+            if not forecasts: raise ValueError("Sector forecast unavailable")
+            names = {r["industry_id"]:r["label"] for r in sectors["history"]}
+            chart = ChartArtifact(id=f"{view}-{sid}", title=f"Sector outlook · {forecasts[0]['forecast_month']}", kind="bar",
+                labels=[names[r["industry_id"]] for r in forecasts], datasets=[Dataset(name="Expected calibrations",values=[r["expected"] for r in forecasts])], unit="calibrations", source=api_v2._mode(sid))
+        else:
+            corr = sectors["correlation"]
+            if not corr: raise ValueError("Sector correlation unavailable")
+            chart = ChartArtifact(id=f"{view}-{sid}", title=f"Sector movement correlation · {corr['window_start']}–{corr['window_end']}", kind="heatmap", labels=corr["labels"],
+                datasets=[Dataset(name=name,values=row) for name,row in zip(corr["labels"],corr["values"])], unit="correlation", source=api_v2._mode(sid))
+        return emit(runtime,"artifact.created",chart.model_dump())
     if sid:
         from collections import Counter
         if view == "industry":
@@ -185,3 +207,50 @@ def create_chart(view: Literal["industry", "activity", "portfolio"], runtime: To
         chart = ChartArtifact(id=f"{view}-{c['id']}", title=f"{c['name']} · {view}",
                               kind=kind, labels=labels, datasets=[Dataset(name="Observed demo data", values=values)], unit=unit)
     return emit(runtime, "artifact.created", chart.model_dump())
+
+
+def _opportunity_summary(runtime, cluster_id=None, use_current=True):
+    workspace = runtime.context.workspace
+    if not workspace.snapshot_id:
+        return {"status": "unavailable", "reason": "Opportunity models require a v2 snapshot"}
+    from ..data.opportunities import compose
+    selected = workspace.opportunity_cluster if use_current else cluster_id
+    result = compose(workspace.snapshot_id, api_v2._metadata(workspace.snapshot_id), workspace.opportunity_filters,
+        selected, display_limit=1, limit=workspace.action_limit, scenario=workspace.commercial_scenario).model_dump()
+    return {k: result[k] for k in ("metadata", "model_version", "selection_revision", "filters", "selected_cluster",
+        "matching_count", "selected_count", "unassigned_count", "filter_options", "clusters", "quality", "metrics",
+        "forecast_supported", "overdue_count", "unassigned_owner_count", "items", "scenario")}
+
+@tool
+def get_opportunity_cohort(runtime: ToolRuntime[TurnContext], cluster_id: str | None = None, use_current_selection: bool = True) -> dict:
+    """Read full-cohort totals and ranked members for current opportunity filters. Use current selection or inspect a specified cluster without changing the page."""
+    runtime.context.consume()
+    return _opportunity_summary(runtime, cluster_id, use_current_selection)
+
+@tool
+def set_opportunity_filters(runtime: ToolRuntime[TurnContext], industry: str | None = None, segment: str | None = None,
+    group: str | None = None, purpose: Literal["all", "upcoming", "inactivity", "discovery"] | None = None,
+    window_days: Literal[30,60,90] | None = None, include_inferred: bool | None = None, include_past_due: bool | None = None) -> dict:
+    """Change Dashboard opportunity filters; exact sector/equipment/segment IDs come from get_opportunity_cohort. Reset a dropdown with all. Clears cluster selection."""
+    runtime.context.consume()
+    from ...contracts.opportunities import OpportunityFilters
+    values = {k:v for k,v in locals().items() if k != "runtime" and v is not None and k in OpportunityFilters.model_fields}
+    merged = OpportunityFilters(**{**runtime.context.workspace.opportunity_filters.model_dump(), **values})
+    from ..data.opportunities import compose
+    compose(runtime.context.workspace.snapshot_id, api_v2._metadata(runtime.context.workspace.snapshot_id), merged, display_limit=1, limit=1)
+    runtime.context.workspace.page_snapshot = None
+    runtime.context.workspace.opportunity_filters = merged
+    runtime.context.workspace.opportunity_cluster = None
+    emit(runtime, "opportunities.filters.set", values)
+    runtime.context.workspace.page = "dashboard"
+    return emit(runtime, "ui.navigate", {"page":"dashboard"})
+
+@tool
+def select_opportunity_cluster(cluster_id: Literal["all", "act-now", "plan-larger", "focused-follow-up", "nurture", "needs-evidence"], runtime: ToolRuntime[TurnContext]) -> dict:
+    """Select a Dashboard opportunity group and synchronize cards/table. all resets selection. Group labels are available in get_opportunity_cohort."""
+    runtime.context.consume()
+    runtime.context.workspace.page_snapshot = None
+    runtime.context.workspace.opportunity_cluster = None if cluster_id == "all" else cluster_id
+    runtime.context.workspace.page = "dashboard"
+    emit(runtime, "opportunities.cluster.select", {"cluster_id":runtime.context.workspace.opportunity_cluster})
+    return emit(runtime, "ui.navigate", {"page":"dashboard"})

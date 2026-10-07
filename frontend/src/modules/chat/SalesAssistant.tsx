@@ -126,14 +126,22 @@ export function SalesAssistantProvider({ children }: { children: ReactNode }) {
       controller.current = abort;
       try {
         const page: Page =
-          pathname === "/customers"
-            ? "customers"
-            : pathname === "/follow-ups"
-              ? "follow-ups"
-              : "dashboard";
+          pathname === "/insights"
+            ? "insights"
+            : pathname === "/customers"
+              ? "customers"
+              : pathname === "/follow-ups"
+                ? "follow-ups"
+                : "dashboard";
         const visible = filterCustomers(s.data, s.filters);
         const context: WorkspaceContext = {
           page,
+          opportunity_filters: s.opportunityFilters,
+          opportunity_cluster: s.opportunityCluster,
+          opportunity_model_version: s.opportunities?.model_version,
+          opportunity_selection_revision: s.opportunities?.selection_revision,
+          commercial_scenario: s.commercialScenario,
+          customer_view: s.customerView,
           page_snapshot: s.v2
             ? integratedSnapshot(s.v2, s.v2Detail, page)
             : page === "dashboard"
@@ -153,7 +161,7 @@ export function SalesAssistantProvider({ children }: { children: ReactNode }) {
             ? page === "customers"
               ? s.v2List?.items.map((c) => c.profile.customer_id) || []
               : page === "dashboard"
-                ? s.v2.actions.slice(0, s.actionLimit).map((a) => a.customer_id)
+                ? s.opportunities?.items.map((a) => a.customer_id) || []
                 : []
             : (page === "customers"
                 ? visible

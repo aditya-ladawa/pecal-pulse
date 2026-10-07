@@ -2,6 +2,7 @@
 
 from typing import Annotated, Literal
 from pydantic import BaseModel, Field, ConfigDict, model_validator
+from ...contracts.opportunities import OpportunityFilters
 
 
 class StrictModel(BaseModel):
@@ -16,7 +17,7 @@ class Filters(StrictModel):
 
 
 class NavigatePayload(StrictModel):
-    page: Literal["dashboard", "customers", "follow-ups"]
+    page: Literal["dashboard", "customers", "follow-ups", "insights"]
 
 
 class Navigate(StrictModel):
@@ -40,22 +41,26 @@ class SelectCustomer(StrictModel):
 
 class Dataset(StrictModel):
     name: str
-    values: list[float]
+    values: list[float | None]
 
 
 class ChartArtifact(StrictModel):
     id: str
     title: str
-    kind: Literal["bar", "line"]
+    kind: Literal["bar", "line", "heatmap"]
     labels: list[str] = Field(min_length=1, max_length=50)
-    datasets: list[Dataset] = Field(min_length=1, max_length=5)
-    unit: Literal["calibrations", "instruments", "customers"]
+    datasets: list[Dataset] = Field(min_length=1, max_length=50)
+    unit: Literal["calibrations", "instruments", "customers", "correlation"]
     source: Literal["mock", "historical"] = "mock"
 
     @model_validator(mode="after")
     def matching_lengths(self):
         if any(len(d.values) != len(self.labels) for d in self.datasets):
             raise ValueError("Every dataset must match the label count")
+        if self.kind == "heatmap" and (self.unit != "correlation" or len(self.datasets) != len(self.labels)):
+            raise ValueError("Correlation heatmap must be square")
+        if self.kind != "heatmap" and any(v is None for d in self.datasets for v in d.values):
+            raise ValueError("Only heatmaps accept unsupported null cells")
         return self
 
 
@@ -76,13 +81,34 @@ class SetControl(StrictModel):
     type: Literal["ui.control.set"]
     payload: Annotated[CustomerTabControl | ActionLimitControl, Field(discriminator="control")]
 
+
+class OpportunityFilterPatch(StrictModel):
+    industry: str | None = None
+    segment: str | None = None
+    group: str | None = None
+    purpose: Literal["all", "upcoming", "inactivity", "discovery"] | None = None
+    window_days: Literal[30,60,90] | None = None
+    include_inferred: bool | None = None
+    include_past_due: bool | None = None
+
+class SetOpportunityFilters(StrictModel):
+    type: Literal["opportunities.filters.set"]
+    payload: OpportunityFilterPatch
+
+class ClusterPayload(StrictModel):
+    cluster_id: Literal["act-now", "plan-larger", "focused-follow-up", "nurture", "needs-evidence"] | None = None
+
+class SelectOpportunityCluster(StrictModel):
+    type: Literal["opportunities.cluster.select"]
+    payload: ClusterPayload
+
 UiCommand = Annotated[
-    Navigate | SetFilters | SelectCustomer | AddArtifact | SetControl, Field(discriminator="type")
+    Navigate | SetFilters | SelectCustomer | AddArtifact | SetControl | SetOpportunityFilters | SelectOpportunityCluster, Field(discriminator="type")
 ]
 
 
 class ChatContext(StrictModel):
-    page: Literal["dashboard", "customers", "follow-ups"] = "dashboard"
+    page: Literal["dashboard", "customers", "follow-ups", "insights"] = "dashboard"
     customer_id: str | None = None
     filters: Filters = Field(default_factory=Filters)
 
