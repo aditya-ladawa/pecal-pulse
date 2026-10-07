@@ -24,8 +24,9 @@ from .features import (FEATURE_NAMES, feature_row, inactivity_evidence, index_hi
                        iso_month, month_index, next_month_window, observed_months,
                        support, volume_baselines)
 from .sectors import build_sectors
+from .snapshot import normalize_snapshot
 
-VERSION = "analytics-v1"
+VERSION = "analytics-v2"
 SEED = 42
 
 
@@ -126,9 +127,11 @@ def _segment(histories: dict, end: int) -> tuple[dict, list, list]:
 def build_outputs(snapshot: dict) -> dict:
     """Train/evaluate on a normalized snapshot and return JSON-ready artifacts.
 
-    Input keys are `manifest`, `profiles`, and `monthly_history`. Real snapshots
+    Input keys are Member 1's `manifest`, `profiles`, `history`, `month_grid`.
+    The typed result of data.service.load_snapshot is accepted directly. Real snapshots
     must come from Member 1; no mock to historical conversion is implicit.
     """
+    snapshot = normalize_snapshot(snapshot)
     manifest = snapshot["manifest"]
     snapshot_id = manifest["snapshot_id"]
     reference = manifest["reference_date"]
@@ -139,7 +142,7 @@ def build_outputs(snapshot: dict) -> dict:
     start, end = month_index(manifest["history_start"]), month_index(complete)
     if start > end:
         raise ValueError("History start follows complete-through month")
-    histories = index_history(snapshot["monthly_history"], complete)
+    histories = index_history(snapshot["history"], complete)
     if any(t < start for history in histories.values() for t in history):
         raise ValueError("History precedes manifest history_start")
     profiles = snapshot["profiles"]
@@ -148,8 +151,9 @@ def build_outputs(snapshot: dict) -> dict:
         raise ValueError("Duplicate customer profile")
     if set(histories) - set(profile_ids):
         raise ValueError("History has unknown customer ID")
-    assigned, segments, segment_candidates = _segment(histories, end)
-    records = _observations(histories, start, end) if end - start + 1 >= 32 else {}
+    complete_coverage = snapshot["month_grid"] == [iso_month(t) for t in range(start, end + 1)]
+    assigned, segments, segment_candidates = _segment(histories, end) if complete_coverage else ({}, [], [])
+    records = _observations(histories, start, end) if complete_coverage and end - start + 1 >= 32 else {}
     supported = bool(records) and all(len(records[stage]) >= 5 for stage in
                                       ("train", "calibration", "validation", "test"))
     volume_supported = supported
@@ -258,6 +262,12 @@ def build_outputs(snapshot: dict) -> dict:
             details = {"recency_months": end - active[-1] if active else None,
                        "cadence_months": float(np.median(np.diff(active))) if len(active) > 1 else None}
             probability = expected = None
+        inactivity = inactivity_evidence(history, end)
+        if not complete_coverage:
+            inactivity = {**inactivity, "flagged": False, "recency_to_cadence": None,
+                "baseline_volume": None, "deficit_fraction": None, "reasons": [],
+                "support": {**inactivity["support"], "status": "unavailable",
+                            "reason": "Snapshot month_grid does not certify continuous history"}}
         predictions.append({"snapshot_id": snapshot_id, "customer_id": customer_id,
             "reference_date": reference, "segment_id": assigned.get(customer_id),
             "activity": {"target": "any_calibration_next_3_months", "probability": probability,
@@ -268,10 +278,11 @@ def build_outputs(snapshot: dict) -> dict:
                 "lower": None, "upper": None, "interval_level": None, "monthly": None,
                 "method": volume_choice or "unavailable", "model_version": VERSION, "support": volume_status},
             "recency_months": details["recency_months"], "cadence_months": details["cadence_months"],
-            "inactivity": inactivity_evidence(history, end), "explanation":
+            "inactivity": inactivity, "explanation":
                 [{"feature": name, "value": float(value), "contribution": None}
                  for name, value in zip(FEATURE_NAMES, vector)] if vector else []})
-    sectors = build_sectors(profiles, histories, manifest["history_start"], complete)
+    sectors = build_sectors(profiles, histories, manifest["history_start"], complete,
+                            covered_months=snapshot["month_grid"])
     for payload in (sectors,):
         payload.update({"snapshot_id": snapshot_id, "reference_date": reference, "model_version": VERSION})
     stage_counts = {stage: len(records.get(stage, [])) for stage in ("train", "calibration", "validation", "test")}
@@ -280,6 +291,9 @@ def build_outputs(snapshot: dict) -> dict:
             separators=(",", ":"), allow_nan=False).encode()).hexdigest(),
         "runtime": {"python": python_version(), "numpy": np.__version__, "scikit_learn": sklearn.__version__},
         "feature_names": list(FEATURE_NAMES),
+        "source_quality_flags": manifest["quality_flags"],
+        "history_coverage": {"continuous_complete_grid": complete_coverage,
+                             "covered_months": len(snapshot["month_grid"])},
         "eligibility": "At least 2 active months, 12 months observed tenure and activity within last 12 months",
         "target": "at least one observed calibration in next three complete months",
         "volume_unit": "calibration_events", "feature_cutoff": complete,
@@ -299,6 +313,7 @@ def build_outputs(snapshot: dict) -> dict:
         "volume_metrics": volume_eval, "activity_reliability": reliability,
         "segment_candidates": segment_candidates,
         "limitations": ["No churn or causal outreach label", "No monthly customer forecast or interval validation",
+                        "Inactivity may reflect changed timing, equipment changes, seasonality or incomplete records",
                         "Model selection uses validation only; test metrics are descriptive"]}
     return {"manifest": {"snapshot_id": snapshot_id, "reference_date": reference,
                 "model_version": VERSION, "source_complete_through_month": complete,
