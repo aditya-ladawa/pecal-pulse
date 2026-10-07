@@ -1,0 +1,11 @@
+[project]
+name = "pecal-hack"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.142.2",
+    "numpy>=2.5.3",
+    "pyodbc>=5.3.0",
+    "scikit-learn>=1.9.1",
+    "uvicorn[standard]>=0.54.0",
+]
