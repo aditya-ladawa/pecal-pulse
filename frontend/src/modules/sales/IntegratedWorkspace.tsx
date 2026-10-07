@@ -16,7 +16,13 @@ import { Chart, ArtifactChart } from "@/modules/artifacts/Chart";
 import { Card, InfoHint } from "@/components/ui/Primitives";
 import type { Bootstrap, Detail } from "@/types/sales-v2";
 import type { EventEnvelope, PageSnapshot } from "@/types/sales";
-import { BatchReasonSummary, CustomerSignals } from "./CustomerSignals";
+import {
+  BatchReasonSummary,
+  CustomerSignals,
+  PeerQuestions,
+  SalesPreparation,
+  salesBriefLines,
+} from "./CustomerSignals";
 const count = (value: number | null | undefined) =>
   value == null
     ? "Unavailable"
@@ -619,6 +625,8 @@ export function CustomerEvidence({
   useEffect(() => setShowAllReasons(false), [d.profile.customer_id]);
   const prediction = d.prediction;
   const volume = prediction?.calibration_volume;
+  const batchReasons =
+    d.action?.reasons.filter((r) => r.type === "upcoming") || [];
   const monthName = (value: string) =>
     new Date(value.slice(0, 7) + "-01T12:00:00Z").toLocaleDateString(
       undefined,
@@ -643,18 +651,7 @@ export function CustomerEvidence({
   const forecastSupported =
     volume?.support.status === "supported" && volume.expected_total != null;
   const exportBrief = () => {
-    const lines = [
-      d.profile.display_name,
-      `History reference: ${d.metadata.reference_date}`,
-      "Known facts",
-      ...d.preparation.facts.map((f) => f.text),
-      "Unknowns",
-      ...d.preparation.unknowns,
-      "Questions",
-      ...d.preparation.questions,
-      "Next step",
-      d.preparation.suggested_next_step,
-    ];
+    const lines = salesBriefLines(d);
     const url = URL.createObjectURL(
       new Blob([lines.join("\n")], { type: "text/plain" }),
     );
@@ -811,171 +808,164 @@ export function CustomerEvidence({
             />
           </Card>
           <CustomerSignals detail={d} />
-          <Card>
-            <details>
-              <summary>Review batches and update their status</summary>
-              <p className="batch-guidance">
-                Confirm timing and whether the work is already handled. Update
-                only the relevant batch.
-              </p>
-              {d.action && d.action.reasons.length > 5 && (
-                <button
-                  className="button"
-                  onClick={() => setShowAllReasons(!showAllReasons)}
-                >
-                  {showAllReasons
-                    ? "Show top 5 reasons"
-                    : `Show all ${d.action.reasons.length} reasons`}
-                </button>
-              )}
-              {d.action ? (
-                d.action.reasons
-                  .slice(0, showAllReasons ? undefined : 5)
-                  .map((r) => (
-                    <div className="batch-review" key={r.id}>
-                      <BatchReasonSummary detail={d} reason={r} />
-                      <div className="batch-actions">
-                        <button
-                          className="button"
-                          disabled={pending}
-                          onClick={() =>
-                            onWorkflow({
-                              suppression: {
-                                reason_id: r.id,
-                                status: "resolved",
-                                until: null,
-                                note: "Not applicable; manually confirmed in prototype",
-                                updated_at: new Date().toISOString(),
-                              },
-                            })
-                          }
-                        >
-                          Mark not applicable
-                        </button>
-                        <button
-                          className="button"
-                          disabled={pending}
-                          onClick={() => {
-                            const until = new Date();
-                            until.setDate(until.getDate() + 30);
-                            void onWorkflow({
-                              suppression: {
-                                reason_id: r.id,
-                                status: "snoozed",
-                                until: until.toISOString().slice(0, 10),
-                                note: "Manual 30-day snooze",
-                                updated_at: new Date().toISOString(),
-                              },
-                            });
-                          }}
-                        >
-                          Snooze 30 days
-                        </button>
+          {batchReasons.length > 0 && (
+            <Card>
+              <details>
+                <summary>Review batches and update their status</summary>
+                <p className="batch-guidance">
+                  Confirm timing and whether the work is already handled. Update
+                  only the relevant batch.
+                </p>
+                {batchReasons.length > 5 && (
+                  <button
+                    className="button"
+                    onClick={() => setShowAllReasons(!showAllReasons)}
+                  >
+                    {showAllReasons
+                      ? "Show top 5 batches"
+                      : `Show all ${batchReasons.length} batches`}
+                  </button>
+                )}
+                {d.action ? (
+                  batchReasons
+                    .slice(0, showAllReasons ? undefined : 5)
+                    .map((r) => (
+                      <div className="batch-review" key={r.id}>
+                        <BatchReasonSummary detail={d} reason={r} />
+                        <div className="batch-actions">
+                          <button
+                            className="button"
+                            disabled={pending}
+                            onClick={() =>
+                              onWorkflow({
+                                suppression: {
+                                  reason_id: r.id,
+                                  status: "resolved",
+                                  until: null,
+                                  note: "Not applicable; manually confirmed in prototype",
+                                  updated_at: new Date().toISOString(),
+                                },
+                              })
+                            }
+                          >
+                            Mark not applicable
+                          </button>
+                          <button
+                            className="button"
+                            disabled={pending}
+                            onClick={() => {
+                              const until = new Date();
+                              until.setDate(until.getDate() + 30);
+                              void onWorkflow({
+                                suppression: {
+                                  reason_id: r.id,
+                                  status: "snoozed",
+                                  until: until.toISOString().slice(0, 10),
+                                  note: "Manual 30-day snooze",
+                                  updated_at: new Date().toISOString(),
+                                },
+                              });
+                            }}
+                          >
+                            Snooze 30 days
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))
-              ) : (
-                <p>No active supported action. History remains available.</p>
-              )}
-            </details>
-          </Card>
+                    ))
+                ) : (
+                  <p>No active supported action. History remains available.</p>
+                )}
+              </details>
+            </Card>
+          )}
         </>
       ) : s.customerTab === "portfolio" ? (
         <>
           <Card>
-            <h2>Observed calibrated portfolio</h2>
+            <div className="card-heading">
+              <h2>Calibration work with us</h2>
+              <InfoHint label="calibration work history">
+                Observed calibration events, not total owned equipment. This
+                history only covers work recorded with Perschmann.
+              </InfoHint>
+            </div>
             <div className="integrated-table">
               <table>
                 <thead>
                   <tr>
                     <th>Category</th>
-                    <th>Distinct instruments</th>
-                    <th>Calibration events</th>
+                    <th>Completed calibrations</th>
                   </tr>
                 </thead>
                 <tbody>
                   {d.portfolio.map((p) => (
                     <tr key={p.group_id}>
                       <td>{p.group_label}</td>
-                      <td>{count(p.distinct_instruments)}</td>
                       <td>{count(p.calibration_events)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            <p>
-              Calibration counts do not represent distinct owned instruments.
-              This portfolio covers observed work with Perschmann.
-            </p>
           </Card>
           <Card>
-            <h2>Peer-supported discovery questions</h2>
-            {d.peer_opportunities.length ? (
-              d.peer_opportunities.map((p, i) => (
-                <div className="integrated-reason" key={i}>
-                  <strong>
-                    {p.group_label} · {(p.prevalence * 100).toFixed(0)}% of{" "}
-                    {p.peer_count} peers
-                  </strong>
-                  <p>{p.question}</p>
-                </div>
-              ))
-            ) : (
-              <p>No category meets the peer-support thresholds.</p>
-            )}
+            <h2>Services to ask about</h2>
+            <PeerQuestions detail={d} />
           </Card>
           <Card>
-            <h2>Requirement evidence</h2>
-            <small>
-              Showing up to 50 of {d.requirements.length} loaded records. Full
-              tier counts cover all source requirements; evidence is loaded with
-              a bounded record limit.
-            </small>
-            <p>
-              {Object.values(d.requirement_tier_counts || {}).reduce(
-                (a, b) => a + b,
-                0,
-              ) || d.requirements.length}{" "}
-              instrument records ·{" "}
-              {d.requirement_tier_counts?.unknown ??
-                d.requirements.filter((r) => r.kind === "unknown").length}{" "}
-              with unknown dates ·{" "}
-              {
-                d.requirements.filter((r) => r.eligibility === "excluded")
-                  .length
-              }{" "}
-              excluded in the loaded evidence.
-            </p>
-            <div className="integrated-table">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Evidence</th>
-                    <th>Window</th>
-                    <th>Eligibility</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {d.requirements.slice(0, 50).map((r) => (
-                    <tr key={r.id}>
-                      <td>{r.kind.replaceAll("_", " ")}</td>
-                      <td>
-                        {r.window_start || "Unknown"} –{" "}
-                        {r.window_end || "Unknown"}
-                      </td>
-                      <td>{r.eligibility.replaceAll("_", " ")}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {d.requirements.length > 50 && (
+            <details>
+              <summary>View instrument date records</summary>
               <small>
-                Showing first 50 loaded records; source tier counts cover the
-                full account.
+                Showing up to 50 of {d.requirements.length} loaded records. Full
+                tier counts cover all source requirements; evidence is loaded
+                with a bounded record limit.
               </small>
-            )}
+              <p>
+                {Object.values(d.requirement_tier_counts || {}).reduce(
+                  (a, b) => a + b,
+                  0,
+                ) || d.requirements.length}{" "}
+                instrument records ·{" "}
+                {d.requirement_tier_counts?.unknown ??
+                  d.requirements.filter((r) => r.kind === "unknown")
+                    .length}{" "}
+                with unknown dates ·{" "}
+                {
+                  d.requirements.filter((r) => r.eligibility === "excluded")
+                    .length
+                }{" "}
+                excluded in the loaded evidence.
+              </p>
+              <div className="integrated-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Evidence</th>
+                      <th>Window</th>
+                      <th>Eligibility</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {d.requirements.slice(0, 50).map((r) => (
+                      <tr key={r.id}>
+                        <td>{r.kind.replaceAll("_", " ")}</td>
+                        <td>
+                          {r.window_start || "Unknown"} –{" "}
+                          {r.window_end || "Unknown"}
+                        </td>
+                        <td>{r.eligibility.replaceAll("_", " ")}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {d.requirements.length > 50 && (
+                <small>
+                  Showing first 50 loaded records; source tier counts cover the
+                  full account.
+                </small>
+              )}
+            </details>
           </Card>
         </>
       ) : (
@@ -987,33 +977,7 @@ export function CustomerEvidence({
                 Export brief
               </button>
             </div>
-            <p>
-              {d.action?.primary_type === "inactivity"
-                ? "Ask whether calibration plans or equipment needs have changed, then agree on a follow-up."
-                : d.action?.primary_type === "discovery"
-                  ? "Ask whether additional calibration services would help this customer."
-                  : "Confirm the next calibration batch, agree on timing, and record who will follow up."}
-            </p>
-            <details>
-              <summary>Detailed evidence and suggested questions</summary>
-              <ul>
-                {d.preparation.facts.slice(0, 8).map((f, i) => (
-                  <li key={i}>{f.text}</li>
-                ))}
-              </ul>
-              <h3>Questions to consider</h3>
-              <ul>
-                {d.preparation.questions.slice(0, 5).map((f, i) => (
-                  <li key={i}>{f}</li>
-                ))}
-              </ul>
-              <h3>Still to confirm</h3>
-              <ul>
-                {d.preparation.unknowns.map((f, i) => (
-                  <li key={i}>{f}</li>
-                ))}
-              </ul>
-            </details>
+            <SalesPreparation detail={d} />
             <form
               className="integrated-form"
               key={d.profile.customer_id + (d.workflow.account_owner || "")}
