@@ -123,12 +123,13 @@ class RefreshAfterCorrectionTests(unittest.TestCase):
         self.addCleanup(self.patch.stop)
         self.addCleanup(self.tmp.cleanup)
 
-    def test_refresh_without_ranking_fn_returns_no_action(self):
+    def test_refresh_auto_wires_ranking(self):
         refreshed = data.refresh_after_correction("synthetic-v1", "SYN-001")
         self.assertEqual(len(refreshed["requirements"]), 5)
         self.assertEqual(len(refreshed["active_requirement_ids"]), 5)
         self.assertEqual(refreshed["suppressed_requirement_ids"], [])
-        self.assertIsNone(refreshed["action"])
+        self.assertIsNotNone(refreshed["action"])
+        self.assertEqual(refreshed["action"].customer_id, "SYN-001")
 
     def test_resolved_reason_leaves_active_set(self):
         data.add_suppression(
@@ -145,7 +146,7 @@ class RefreshAfterCorrectionTests(unittest.TestCase):
 
         def stub_ranking(profile, requirements, prediction, peers, workflow):
             seen["ids"] = [r.id for r in requirements]
-            return "ranked"
+            return None
 
         refreshed = data.refresh_after_correction(
             "synthetic-v1", "SYN-001", ranking_fn=stub_ranking
@@ -153,7 +154,7 @@ class RefreshAfterCorrectionTests(unittest.TestCase):
         self.assertEqual(refreshed["suppressed_requirement_ids"], ["REQ-005"])
         self.assertNotIn("REQ-005", seen["ids"])
         self.assertEqual(len(seen["ids"]), 4)
-        self.assertEqual(refreshed["action"], "ranked")
+        self.assertIsNone(refreshed["action"])
 
     def test_expired_snooze_returns_to_active(self):
         data.add_suppression(

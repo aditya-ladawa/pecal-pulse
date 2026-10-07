@@ -9,7 +9,15 @@ from .service import (
     recency_months,
 )
 from .build_snapshot import build_snapshot, convert_interval
-from .composition import refresh_after_correction
+from .composition import (
+    action_for_customer,
+    peers_for_customer,
+    preparation_for_customer,
+    ranked_queue,
+    refresh_after_correction,
+    snapshot_stats,
+    split_queue,
+)
 from .requirements import infer_requirements
 from .workflow import (
     add_suppression,
@@ -29,6 +37,12 @@ __all__ = [
     "recency_months",
     "build_snapshot",
     "convert_interval",
+    "action_for_customer",
+    "peers_for_customer",
+    "preparation_for_customer",
+    "ranked_queue",
+    "snapshot_stats",
+    "split_queue",
     "refresh_after_correction",
     "infer_requirements",
     "get_workflow",
