@@ -281,6 +281,15 @@ def contracts():
     }
 
 
+def _known_reason_ids(snapshot_id, customer_id, detail):
+    known = {r.id for r in detail["requirements"]}
+    action = data.action_for_customer(snapshot_id, customer_id, WORKFLOW_TODAY)
+    if action is not None:
+        known.update(r.id for r in action.reasons)
+    known.update(r.reason_id for r in data.get_workflow(customer_id).suppressions)
+    return known
+
+
 @router.post("/followups", status_code=201)
 def create_followup(request: v2.FollowupCreateV2, snapshot_id: str = DEFAULT_SNAPSHOT):
     _require_snapshot(snapshot_id)
@@ -288,7 +297,7 @@ def create_followup(request: v2.FollowupCreateV2, snapshot_id: str = DEFAULT_SNA
         detail = data.get_customer_detail(snapshot_id, request.customer_id)
     except ValueError:
         raise HTTPException(404, f"Unknown customer: {request.customer_id}")
-    known = {r.id for r in detail["requirements"]}
+    known = _known_reason_ids(snapshot_id, request.customer_id, detail)
     unknown = [rid for rid in request.reason_ids if rid not in known]
     if unknown:
         raise HTTPException(404, f"Unknown reason ids: {sorted(unknown)}")
@@ -312,11 +321,13 @@ def update_workflow(
         detail = data.get_customer_detail(snapshot_id, customer_id)
     except ValueError:
         raise HTTPException(404, f"Unknown customer: {customer_id}")
+    known = _known_reason_ids(snapshot_id, customer_id, detail)
+    if patch.suppression is not None and patch.suppression.reason_id not in known:
+        raise HTTPException(404, "Unknown reason id")
     workflow = data.get_workflow(customer_id)
     if patch.checks is not None:
         workflow = data.update_checks(customer_id, patch.checks)
     if patch.suppression is not None:
-        known = {r.id for r in detail["requirements"]}
         try:
             workflow = data.add_suppression(customer_id, patch.suppression, known)
         except ValueError as exc:

@@ -94,7 +94,6 @@ def build_snapshot(
     history_start: str,
 ) -> dict:
     quality_flags: list[str] = []
-    quality_flags: list[str] = []
     complete_idx = _month_to_index(complete_through_month)
 
     # --- monthly history: dedupe, drop out-of-range, zero-fill ---
@@ -174,7 +173,7 @@ def build_snapshot(
 
     # --- portfolio (trailing-12m group calibration counts; the export has
     # no group-level distinct-instrument counts, so those stay null) ---
-    window_start = date.fromisoformat(complete_through_month + "-01")
+    window_start = date.fromisoformat(_index_to_month(complete_idx - 11) + "-01")
     import calendar as _calendar
 
     last_day = _calendar.monthrange(int(complete_through_month[:4]), int(complete_through_month[5:7]))[1]
@@ -328,7 +327,8 @@ def main() -> None:
     )
     SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
     out = SNAPSHOT_DIR / f"{args.snapshot_id}.json"
-    out.write_text(json.dumps(document, ensure_ascii=False))
+    with out.open("x") as output:
+        output.write(json.dumps(document, ensure_ascii=False))
     print(f"wrote {out}")
     print(json.dumps(document["manifest"], indent=1))
 
