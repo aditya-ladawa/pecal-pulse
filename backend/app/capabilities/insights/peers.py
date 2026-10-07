@@ -22,7 +22,7 @@ EXCLUDED_INDUSTRIES = {"unknown", "sonstiges", ""}
 
 
 def normalize_industry(value: str | None) -> str:
-    return (value or "").strip().lower()
+    return (value or "").strip().lower().removeprefix("ind-")
 
 
 def owns_category(row: PortfolioRow) -> bool:

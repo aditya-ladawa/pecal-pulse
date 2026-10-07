@@ -39,7 +39,7 @@ def _parse(value: str | None) -> date | None:
 def _add_months(day: date, months: int) -> date:
     total = day.month - 1 + months
     year, month = day.year + total // 12, total % 12 + 1
-    return date(year, month, min(day.day, calendar.monthrange(year, month)[0]))
+    return date(year, month, min(day.day, calendar.monthrange(year, month)[1]))
 
 
 def _median(values: list[int]) -> float:
@@ -185,6 +185,7 @@ def _infer_one(
             **base,
             "id": f"REQ-{inst.instrument_id}-unknown",
             "kind": "unknown",
+            "eligibility": "excluded" if inst.stopped is True else "review_required",
             "window_start": None,
             "window_end": None,
             "method": "no_usable_date_evidence",

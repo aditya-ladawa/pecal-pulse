@@ -12,6 +12,7 @@ data/runtime/snapshots/<snapshot_id>.json (gitignored, never committed).
 """
 
 import json
+import re
 from functools import lru_cache
 from pathlib import Path
 
@@ -51,6 +52,8 @@ def _snapshot_path(snapshot_id: str) -> Path:
     raw = json.loads(MOCK_SNAPSHOT_FILE.read_text())
     if raw["manifest"]["snapshot_id"] == snapshot_id:
         return MOCK_SNAPSHOT_FILE
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", snapshot_id):
+        raise ValueError("Invalid snapshot ID")
     candidate = RUNTIME_SNAPSHOT_DIR / f"{snapshot_id}.json"
     if candidate.is_file():
         raw = json.loads(candidate.read_text())
@@ -88,29 +91,20 @@ def list_customers(snapshot_id: str) -> list[v2.CustomerProfile]:
 def get_customer_detail(snapshot_id: str, customer_id: str) -> dict:
     """Profile + history + portfolio + instruments + events + requirements."""
     snapshot = load_snapshot(snapshot_id)
-    profile = next(
-        (p for p in snapshot["profiles"] if p.customer_id == customer_id), None
-    )
-    if profile is None:
+    if "_customer_index" not in snapshot:
+        index = {p.customer_id: {"profile": p, **{name: [] for name in ("history", "portfolio", "instruments", "events", "requirements")}} for p in snapshot["profiles"]}
+        keys = {"history": "customer_id", "portfolio": "customer_id", "instruments": "current_customer_id", "events": "historical_customer_id", "requirements": "customer_id"}
+        for section, key in keys.items():
+            for row in snapshot[section]:
+                customer = getattr(row, key)
+                if customer in index:
+                    index[customer][section].append(row)
+        snapshot["_customer_index"] = index
+    detail = snapshot["_customer_index"].get(customer_id)
+    if detail is None:
         raise ValueError(f"Unknown customer: {customer_id}")
-    return {
-        "profile": profile,
-        "history": [h for h in snapshot["history"] if h.customer_id == customer_id],
-        "portfolio": [p for p in snapshot["portfolio"] if p.customer_id == customer_id],
-        "instruments": [
-            i
-            for i in snapshot["instruments"]
-            if i.current_customer_id == customer_id
-        ],
-        "events": [
-            e
-            for e in snapshot["events"]
-            if e.historical_customer_id == customer_id
-        ],
-        "requirements": [
-            r for r in snapshot["requirements"] if r.customer_id == customer_id
-        ],
-    }
+    return detail
+
 
 
 def recency_months(snapshot_id: str, customer_id: str) -> int | None:
@@ -118,8 +112,8 @@ def recency_months(snapshot_id: str, customer_id: str) -> int | None:
     snapshot = load_snapshot(snapshot_id)
     reference = snapshot["manifest"].reference_date[:7]
     active = sorted(
-        h.month for h in snapshot["history"]
-        if h.customer_id == customer_id and h.calibration_events > 0
+        h.month for h in get_customer_detail(snapshot_id, customer_id)["history"]
+        if h.calibration_events > 0
     )
     if not active:
         return None

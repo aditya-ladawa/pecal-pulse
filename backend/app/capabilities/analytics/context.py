@@ -73,10 +73,11 @@ def for_snapshot(snapshot: dict) -> AnalyticsContext:
     """Accept Member 1's validated loader result; reject incompatible artifacts."""
     manifest = snapshot["manifest"]
     root = Path(os.getenv("PECAL_ANALYTICS_ROOT", str(DEFAULT_ROOT))).resolve()
+    customer_ids = snapshot.setdefault("_analytics_customer_ids", tuple(sorted(p.customer_id for p in snapshot["profiles"])))
     try:
         return _context(manifest.snapshot_id, manifest.reference_date,
                         manifest.complete_through_month,
-                        tuple(sorted(p.customer_id for p in snapshot["profiles"])), root)
+                        customer_ids, root)
     except FileNotFoundError:
         return AnalyticsContext(reason="Analytics artifacts have not been published for this snapshot")
     except (OSError, ValueError, KeyError, TypeError):

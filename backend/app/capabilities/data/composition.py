@@ -35,6 +35,8 @@ def _suppressed_ids(state: v2.AccountWorkflow, today: str) -> set[str]:
 def snapshot_stats(snapshot_id: str) -> _insights.SnapshotStats:
     """Frozen normalization anchors: every account ranks against the same ones."""
     snapshot = load_snapshot(snapshot_id)
+    if "_ranking_stats" in snapshot:
+        return snapshot["_ranking_stats"]
     instruments_per_account: dict[str, int] = {}
     for inst in snapshot["instruments"]:
         if inst.current_customer_id:
@@ -55,23 +57,26 @@ def snapshot_stats(snapshot_id: str) -> _insights.SnapshotStats:
             volume_3m[row.customer_id] = volume_3m.get(row.customer_id, 0) + row.calibration_events
     counts = sorted(instruments_per_account.values())
     p90 = counts[max(0, min(len(counts) - 1, int(len(counts) * 0.9)))] if counts else 1
-    return _insights.SnapshotStats(
+    snapshot["_ranking_stats"] = _insights.SnapshotStats(
         snapshot_id=snapshot_id,
         reference_date=snapshot["manifest"].reference_date,
         max_instruments_per_account=max(counts + [1]),
         max_calibration_events_3m=max(list(volume_3m.values()) + [1.0]),
         p90_instruments_per_account=float(p90 or 1),
     )
+    return snapshot["_ranking_stats"]
 
 
 def _peer_inputs(snapshot_id: str) -> dict:
     snapshot = load_snapshot(snapshot_id)
+    if "_peer_inputs" in snapshot:
+        return snapshot["_peer_inputs"]
     industry_by_customer = {
         p.customer_id: p.industry_id
         for p in snapshot["profiles"]
         if p.industry_id is not None
     }
-    return {
+    snapshot["_peer_inputs"] = {
         "portfolios": [_compat.portfolio_from_shared(p) for p in snapshot["portfolio"]],
         "industry_by_customer": industry_by_customer,
         "group_labels": {
@@ -83,6 +88,9 @@ def _peer_inputs(snapshot_id: str) -> dict:
             for industry in set(industry_by_customer.values())
         },
     }
+    peer = snapshot["_peer_inputs"]
+    peer["index"] = _insights.build_peer_index(peer["portfolios"], industry_by_customer)
+    return peer
 
 
 def peers_for_customer(snapshot_id: str, customer_id: str) -> list[v2.PeerOpportunity]:
@@ -114,9 +122,7 @@ def peers_for_customer(snapshot_id: str, customer_id: str) -> list[v2.PeerOpport
         target_customer_id=customer_id,
         target_industry_id=detail["profile"].industry_id,
         owned_group_ids=owned,
-        peer_index=_insights.build_peer_index(
-            peer["portfolios"], peer["industry_by_customer"]
-        ),
+        peer_index=peer["index"],
         group_labels=peer["group_labels"],
         industry_customer_count=peer["industry_customer_count"],
         window_start=window_start,
