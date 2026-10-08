@@ -35,9 +35,9 @@ export function AgentFeedback() {
             element,
             {
               boxShadow: [
-                "0 0 0 0 rgba(114,150,106,0)",
-                "0 0 0 4px rgba(114,150,106,0.32)",
-                "0 0 0 0 rgba(114,150,106,0)",
+                "0 0 0 0 rgba(200,106,48,0)",
+                "0 0 0 4px rgba(200,106,48,0.24)",
+                "0 0 0 0 rgba(200,106,48,0)",
               ],
             },
             { duration: 1.1 },

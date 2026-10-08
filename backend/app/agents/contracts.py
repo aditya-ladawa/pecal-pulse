@@ -21,6 +21,7 @@ class PageSnapshot(StrictModel):
     loading: bool = False
 
 class WorkspaceContext(ChatContext):
+    language: Literal["en", "de"] = "en"
     opportunity_filters: OpportunityFilters = Field(default_factory=OpportunityFilters)
     opportunity_cluster: Literal["act-now", "plan-larger", "focused-follow-up", "nurture", "needs-evidence"] | None = None
     opportunity_model_version: str | None = None

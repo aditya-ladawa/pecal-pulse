@@ -12,6 +12,7 @@ import json
 from backend.app.agents.contracts import AgentChatRequest, WorkspaceContext
 from backend.app.agents.react_agent import agent_lifespan, ThreadBusy
 from backend.app.agents.settings import Settings
+from types import SimpleNamespace
 
 class ToolModel(GenericFakeChatModel):
     def bind_tools(self, tools, **kwargs):
@@ -36,6 +37,20 @@ def call(name, args=None):
     return AIMessage(content="", tool_calls=[{"name": name, "args": args or {}, "id": str(uuid4()), "type": "tool_call"}])
 
 class ChatAgentTests(unittest.IsolatedAsyncioTestCase):
+    async def test_current_language_replaces_previous_prompt_language(self):
+        from backend.app.agents.react_agent import workspace_prompt
+        captured = []
+        request = SimpleNamespace(
+            runtime=SimpleNamespace(context=SimpleNamespace(workspace=WorkspaceContext(language="de"))),
+            override=lambda **kwargs: kwargs,
+        )
+        workspace_prompt.wrap_model_call(request, lambda updated: captured.append(updated["system_message"].content))
+        request.runtime.context.workspace.language = "en"
+        workspace_prompt.wrap_model_call(request, lambda updated: captured.append(updated["system_message"].content))
+        self.assertIn("Reply in German", captured[0])
+        self.assertIn("Reply in English", captured[1])
+        self.assertNotIn("Reply in German", captured[1])
+        self.assertIn("account IDs", captured[1])
     async def asyncSetUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.settings = Settings(checkpoint_path=str(Path(self.temp.name) / "chat.sqlite3"), openrouter_api_key="")

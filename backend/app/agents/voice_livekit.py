@@ -32,7 +32,10 @@ def configured(settings: Settings) -> bool:
 
 
 class VoiceConnection:
-    def __init__(self, settings: Settings, session_id: str):
+    def __init__(self, settings: Settings, session_id: str, language: str = "de"):
+        if language not in ("en", "de"):
+            raise ValueError("Unsupported assistant language.")
+        self.language = language
         self.settings = settings
         self.room = rtc.Room()
         self.session_id = session_id
@@ -63,8 +66,9 @@ class VoiceConnection:
                            api_secret=self.settings.livekit_api_secret.get_secret_value(),
                            http_session=self.http)
         self.session = AgentSession(
-            stt=inference.STT(model="deepgram/nova-3", language="multi", **credentials),
-            tts=inference.TTS(model="inworld/inworld-tts-2-flash", voice="Ashley", **credentials),
+            stt=inference.STT(model="deepgram/nova-3", language=self.language, **credentials),
+            tts=inference.TTS(model="cartesia/sonic-3", voice="9626c31c-bec5-4cca-baa8-f8ba9e84c8bc",
+                               language=self.language, **credentials),
             vad=None,
             turn_handling=TurnHandlingOptions(turn_detection="manual"),
             user_away_timeout=None,
@@ -90,7 +94,9 @@ class VoiceConnection:
             authorize(data)
             if self.committing:
                 raise rtc.RpcError(1500, "Please wait for transcription.")
-            self.session.interrupt()
+            # Awaited so the interruption is fully processed (and speech
+            # scheduling resumed) before the new turn opens its input.
+            await self.session.interrupt()
             self.session.clear_user_turn()
             self.turn_id = str(uuid4())
             self.spoken_turn = None
@@ -124,7 +130,13 @@ class VoiceConnection:
                 if not transcript or len(transcript) > 2000:
                     raise rtc.RpcError(1500, "No clear speech detected. Please try again.")
                 # Stream this immediately, without waiting for the LLM or a tool.
-                self.session.say("I'll check that for you.", add_to_chat_ctx=False)
+                # The acknowledgement must never fail the turn: speech
+                # scheduling can still be paused after an interruption.
+                try:
+                    self.session.say("Ich schaue mir das an." if self.language == "de"
+                                     else "I'll take a look.", add_to_chat_ctx=False)
+                except RuntimeError:
+                    logger.warning("LiveKit acknowledgement skipped (scheduling paused)")
                 return json.dumps({"text": transcript, "turn_id": self.turn_id})
             except rtc.RpcError:
                 raise
@@ -162,7 +174,7 @@ class VoiceConnection:
             self.listening = False
             self.turn_id = None
             self.session.input.set_audio_enabled(False)
-            self.session.interrupt()
+            await self.session.interrupt()
             self.session.clear_user_turn()
             if self.limit_task:
                 self.limit_task.cancel()
@@ -195,13 +207,16 @@ class VoiceManager:
         self.expirations = {}
         self.lock = asyncio.Lock()
 
-    async def connect(self, session_id: str):
+    async def connect(self, session_id: str, language: str = "de"):
         async with self.lock:
             if session_id in self.connections:
-                return self.connections[session_id]
+                connection = self.connections[session_id]
+                if connection.language != language:
+                    raise ValueError("Close this voice session before changing its language.")
+                return connection
             if len(self.connections) >= 3:
                 raise ValueError("Close another voice session before starting a new one.")
-            connection = VoiceConnection(Settings(), session_id)
+            connection = VoiceConnection(Settings(), session_id, language)
             try:
                 async with asyncio.timeout(20):
                     await connection.start()

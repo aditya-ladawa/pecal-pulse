@@ -14,6 +14,8 @@ export function VoicePanel() {
   const aui = useAui();
   const running = useAuiState((s) => s.thread.isRunning);
   const response = useSalesStore((s) => s.voiceResponse);
+  const language = useSalesStore((s) => s.assistantLanguage);
+  const german = language === "de";
   const savedReply = useSalesStore(
     (s) =>
       s.messages
@@ -58,9 +60,7 @@ export function VoicePanel() {
     try {
       const all = await navigator.mediaDevices?.enumerateDevices();
       if (!all) return "";
-      const outs = all.filter(
-        (d) => d.kind === "audiooutput" && d.deviceId,
-      );
+      const outs = all.filter((d) => d.kind === "audiooutput" && d.deviceId);
       setOutputs(outs);
       const spk = pickSpeakerOutput(
         outs.map((d) => ({ deviceId: d.deviceId, label: d.label || "" })),
@@ -98,17 +98,20 @@ export function VoicePanel() {
 
   useEffect(() => {
     mounted.current = true;
-    const client = new LiveKitVoice({
-      onSpeaking: (value) => {
-        if (mounted.current) setSpeaking(value);
+    const client = new LiveKitVoice(
+      {
+        onSpeaking: (value) => {
+          if (mounted.current) setSpeaking(value);
+        },
+        onError: (message) => {
+          if (mounted.current) {
+            setError(message);
+            setState("error");
+          }
+        },
       },
-      onError: (message) => {
-        if (mounted.current) {
-          setError(message);
-          setState("error");
-        }
-      },
-    });
+      language,
+    );
     const meter = createLiveKitAdapter();
     setVoice(client);
     setAdapter(meter);
@@ -130,6 +133,7 @@ export function VoicePanel() {
       if (timer.current) clearTimeout(timer.current);
       meter.dispose();
       client.close();
+      useSalesStore.getState().set({ voiceBusy: false });
     };
   }, []);
 
@@ -153,6 +157,7 @@ export function VoicePanel() {
     if (running) aui.thread.cancelRun();
     setSpeaking(false);
     setState("idle");
+    useSalesStore.getState().set({ voiceBusy: false });
   };
   const submit = async () => {
     spaceHeld.current = false;
@@ -164,9 +169,12 @@ export function VoicePanel() {
     const epoch = generation.current;
     try {
       const text = await voice.finish();
-      if (!text || !mounted.current || epoch !== generation.current) return;
+      if (!mounted.current || epoch !== generation.current) return;
       setState("idle");
+      useSalesStore.getState().set({ voiceBusy: false });
+      if (!text) return;
       useSalesStore.getState().set({ voiceInputPending: true });
+      // Spoken turns use the existing agent/tool stream immediately. Leave typed drafts intact.
       await aui.thread.append({
         role: "user",
         content: [{ type: "text", text }],
@@ -177,6 +185,7 @@ export function VoicePanel() {
           e instanceof Error ? e.message : "Could not transcribe speech.",
         );
         setState("error");
+        useSalesStore.getState().set({ voiceBusy: false });
       }
     }
   };
@@ -186,6 +195,7 @@ export function VoicePanel() {
     if (running) aui.thread.cancelRun();
     setError("");
     setState("connecting");
+    useSalesStore.getState().set({ voiceBusy: true });
     setSpeaking(false);
     const epoch = ++generation.current;
     try {
@@ -196,8 +206,7 @@ export function VoicePanel() {
       )
         return;
       const spk = await refreshOutputs();
-      if (spk && outputSupported)
-        await voice.setOutput(spk).catch(() => {});
+      if (spk && outputSupported) await voice.setOutput(spk).catch(() => {});
       listening.current = true;
       setState("listening");
       adapter?.setTrack({ publication: voice.microphone() });
@@ -207,6 +216,7 @@ export function VoicePanel() {
         void voice.cancel();
         setError(e instanceof Error ? e.message : "Could not start voice.");
         setState("error");
+        useSalesStore.getState().set({ voiceBusy: false });
       }
     }
   };
@@ -276,6 +286,26 @@ export function VoicePanel() {
     listening.current || speaking || running || state === "connecting";
   return (
     <div className="voice-panel">
+      <label className="voice-language">
+        <span>{german ? "Sprache" : "Language"}</span>
+        <select
+          aria-label="Assistant language"
+          value={language}
+          disabled={active}
+          onChange={(event) => {
+            const next = event.target.value === "de" ? "de" : "en";
+            localStorage.setItem("pecal-assistant-language", next);
+            useSalesStore.getState().set({
+              assistantLanguage: next,
+              voiceInputPending: false,
+              voiceResponse: null,
+            });
+          }}
+        >
+          <option value="en">EN · English</option>
+          <option value="de">DE · Deutsch</option>
+        </select>
+      </label>
       {voice && (
         <RoomContext.Provider value={voice.room}>
           <RoomAudioRenderer />
@@ -291,7 +321,11 @@ export function VoicePanel() {
               : "Start voice request"
         }
         aria-keyshortcuts="Space"
-        title="Hold Space to speak; release to send. Or tap."
+        title={
+          german
+            ? "Leertaste halten zum Sprechen; loslassen zum Senden. Oder tippen."
+            : "Hold Space to speak; release to send. Or tap."
+        }
         aria-pressed={state === "listening"}
         disabled={!configured || !chatReady}
         onClick={tap}
@@ -300,8 +334,8 @@ export function VoicePanel() {
           state={!configured || !chatReady ? "disabled" : displayed}
           levelRef={state === "listening" ? adapter?.levelRef : undefined}
           size={120}
-          colorFrom="#274c67"
-          colorTo="#ff6f00"
+          colorFrom="#b96532"
+          colorTo="#f5b079"
           label={displayed}
         />
         <span className="voice-orb-icon">{active && <Square size={17} />}</span>
@@ -309,15 +343,27 @@ export function VoicePanel() {
       <span className="voice-status" role="status">
         {state === "listening"
           ? spaceHeld.current
-            ? "Listening · release Space to send"
-            : "Listening · tap to send"
+            ? german
+              ? "Hört zu · Leertaste zum Senden loslassen"
+              : "Listening · release Space to send"
+            : german
+              ? "Hört zu · zum Senden tippen"
+              : "Listening · tap to send"
           : speaking
-            ? "Speaking · tap to stop"
+            ? german
+              ? "Spricht · zum Stoppen tippen"
+              : "Speaking · tap to stop"
             : running
-              ? "Working…"
+              ? german
+                ? "Wird bearbeitet…"
+                : "Working…"
               : state === "connecting"
-                ? "Connecting…"
-                : "Hold Space to speak · or tap"}
+                ? german
+                  ? "Verbindung wird hergestellt…"
+                  : "Connecting…"
+                : german
+                  ? "Leertaste zum Sprechen halten · oder tippen"
+                  : "Hold Space to speak · or tap"}
       </span>
       <button
         className="icon-button"
@@ -332,7 +378,13 @@ export function VoicePanel() {
         onClick={() => {
           setError("");
           void voice
-            ?.speak(savedReply || "Pulse is ready. You can speak now.", true)
+            ?.speak(
+              savedReply ||
+                (german
+                  ? "Pulse ist bereit. Du kannst jetzt sprechen."
+                  : "Pulse is ready. You can speak now."),
+              true,
+            )
             .catch((e) => setError(e.message || "Could not play speech."));
         }}
       >

@@ -34,6 +34,17 @@ class VoiceAdapterTests(unittest.TestCase):
         self.assertEqual(self.client.post("/api/voice/connect", json={"session_id":"anything"}).status_code, 422)
         self.app.state.voice.connect.assert_not_called()
 
+    def test_language_reaches_voice_manager_and_invalid_language_is_rejected(self):
+        session_id = str(uuid4())
+        connection = SimpleNamespace(settings=SimpleNamespace(livekit_url="wss://test"),
+            identity="browser", agent_identity="pulse-voice", token=lambda identity: "scoped")
+        self.app.state.voice.connect.return_value = connection
+        with patch.object(voice, "configured", return_value=True):
+            self.assertEqual(self.client.post("/api/voice/connect", json={"session_id":session_id,"language":"en"}).status_code, 200)
+        self.app.state.voice.connect.assert_awaited_once_with(session_id, "en")
+        self.assertEqual(self.client.post("/api/voice/connect", json={"session_id":session_id,"language":"fr"}).status_code, 422)
+        self.app.state.voice.connect.assert_awaited_once()
+
     def test_provider_error_does_not_leak_details(self):
         self.app.state.voice.connect.side_effect = RuntimeError("private provider credentials")
         with patch.object(voice, "configured", return_value=True):
@@ -53,9 +64,12 @@ class VoiceLifecycleTests(unittest.IsolatedAsyncioTestCase):
     async def test_idempotent_connect_and_stop(self):
         with patch("backend.app.agents.voice_livekit.VoiceConnection") as factory:
             factory.return_value.start = AsyncMock(); factory.return_value.close = AsyncMock()
+            factory.return_value.language = "de"
             manager = VoiceManager()
             first = await manager.connect("same")
             self.assertIs(await manager.connect("same"), first)
+            with self.assertRaisesRegex(ValueError, "changing its language"):
+                await manager.connect("same", "en")
             factory.return_value.start.assert_awaited_once()
             await manager.stop("same"); await manager.stop("same")
             factory.return_value.close.assert_awaited_once()
@@ -80,6 +94,7 @@ class VoiceTurnTests(unittest.IsolatedAsyncioTestCase):
         self.handlers = {}
         self.session = MagicMock()
         self.session.start = AsyncMock(); self.session.aclose = AsyncMock()
+        self.session.interrupt = AsyncMock()
         self.session.commit_user_turn = AsyncMock(return_value="Show accounts due soon")
         room = MagicMock(); room.connect = AsyncMock(); room.disconnect = AsyncMock()
         def register(name):
@@ -105,7 +120,39 @@ class VoiceTurnTests(unittest.IsolatedAsyncioTestCase):
         self.session.commit_user_turn.assert_awaited_once_with(skip_reply=True,transcript_timeout=4.0,stt_flush_duration=0.5)
         payload=json.dumps({"turn_id":result["turn_id"],"text":"Found 12 accounts.\n\nDetailed chart explanation."})
         await self.handlers["speak"](self.data(payload)); await self.handlers["speak"](self.data(payload))
-        self.assertEqual([call.args[0] for call in self.session.say.call_args_list], ["I'll check that for you.","Found 12 accounts."])
+        self.assertEqual([call.args[0] for call in self.session.say.call_args_list], ["Ich schaue mir das an.","Found 12 accounts."])
+
+    async def test_transcript_keeps_german_words_numbers_and_punctuation(self):
+        expected = "Zeige Müller: 30 Geräte, fällig am 15. Oktober."
+        self.session.commit_user_turn.return_value = expected
+        await self.handlers["start_turn"](self.data())
+        result = json.loads(await self.handlers["end_turn"](self.data()))
+        self.assertEqual(result["text"], expected)
+        await self.handlers["interrupt"](self.data())
+        self.assertEqual(self.session.interrupt.await_count, 2)
+
+    async def test_english_uses_english_recognition_speech_and_acknowledgement(self):
+        from backend.app.agents.voice_livekit import inference
+        self.connection.language = "en"
+        await self.connection.http.close()
+        await self.connection.start()
+        self.assertEqual(inference.STT.call_args.kwargs["language"], "en")
+        self.assertEqual(inference.TTS.call_args.kwargs["language"], "en")
+        await self.handlers["start_turn"](self.data())
+        await self.handlers["end_turn"](self.data())
+        self.assertEqual(self.session.say.call_args.args[0], "I'll take a look.")
+
+    async def test_german_configures_both_speech_providers(self):
+        from backend.app.agents.voice_livekit import inference
+        self.assertEqual(inference.STT.call_args.kwargs["language"], "de")
+        self.assertEqual(inference.TTS.call_args.kwargs["language"], "de")
+
+    async def test_paused_scheduling_skips_ack_but_keeps_transcript(self):
+        self.session.say.side_effect = RuntimeError("AgentSession is closing, cannot use say()")
+        await self.handlers["start_turn"](self.data())
+        result = json.loads(await self.handlers["end_turn"](self.data()))
+        self.assertEqual(result["text"], "Show accounts due soon")
+        self.session.say.assert_called_once()
 
     async def test_empty_transcript_cannot_trigger_ack_or_agent_command(self):
         from livekit import rtc
