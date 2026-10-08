@@ -485,7 +485,6 @@ function InsightsView({
   const summary = evidence?.summary ?? null;
   const retention = evidence?.retention ?? null;
   const volume = evidence?.volume ?? null;
-  const dueMonths = summary?.due_calendar.months ?? [];
   const industryRows = Object.entries(summary?.industry_expected ?? {})
     .map(([id, v]) => ({ id, label: v.label || id, expected: v.expected || 0, accounts: v.accounts || 0 }))
     .sort((a, b) => b.expected - a.expected)
@@ -525,113 +524,81 @@ function InsightsView({
           </p>
         </Card>
       )}
-      <div className="integrated-charts">
-        <Card>
-          <div className="card-heading">
-            <h2>Calibration work coming due</h2>
-            <InfoHint label="due calendar">
-              Supported requirement windows starting per month, from recorded
-              and inferred due dates — evidence, not model output. Past-due
-              records need a timing check before any outreach.
-            </InfoHint>
-          </div>
-          {dueMonths.length ? (
-            <>
-              <Chart
-                label="Supported calibration requirements due per month, recorded versus inferred"
-                height={300}
-                option={{
-                  tooltip: { trigger: "axis" },
-                  legend: { type: "scroll" },
-                  grid: { left: 55, right: 20, bottom: 35, top: 50 },
-                  xAxis: { type: "category", data: dueMonths.map((m) => m.month) },
-                  yAxis: { type: "value", name: "Requirements" },
-                  series: [
-                    { name: "Recorded due date", type: "bar", stack: "due", data: dueMonths.map((m) => m.recorded) },
-                    { name: "Inferred window", type: "bar", stack: "due", data: dueMonths.map((m) => m.inferred) },
-                  ],
-                }}
-              />
-              <small>
-                {summary!.due_calendar.past_due.toLocaleString()} past-due
-                records predate the reference date; a passed date does not
-                prove outstanding work.
-              </small>
-            </>
-          ) : (
-            <p>Due-date evidence unavailable for this snapshot.</p>
-          )}
-        </Card>
-        <Card>
-          <div className="card-heading">
-            <h2>Expected calibrations by industry</h2>
-            <InfoHint label="expected calibrations by industry">
-              Sums of supported 3-month account forecasts per industry.
-              Directional totals for focus planning, not confirmed orders.
-            </InfoHint>
-          </div>
-          {industryRows.length ? (
-            <Chart
-              label="Supported expected calibrations for the next three months by industry"
-              height={300}
-              option={{
-                tooltip: { trigger: "axis" },
-                grid: { left: 150, right: 20, bottom: 35, top: 20 },
-                xAxis: { type: "value", name: "Calibrations" },
-                yAxis: {
-                  type: "category",
-                  data: industryRows.map((r) => r.label),
-                  axisLabel: { fontSize: 10 },
+      <Card>
+        <div className="card-heading">
+          <h2>Expected calibrations by industry</h2>
+          <InfoHint label="expected calibrations by industry">
+            Sums of supported 3-month account forecasts per industry.
+            Directional totals for focus planning, not confirmed orders.
+          </InfoHint>
+        </div>
+        {industryRows.length ? (
+          <Chart
+            label="Supported expected calibrations for the next three months by industry"
+            height={330}
+            option={{
+              tooltip: { trigger: "axis" },
+              grid: { left: 60, right: 20, bottom: 80, top: 30 },
+              xAxis: {
+                type: "category",
+                name: "Calibrations",
+                nameLocation: "middle",
+                nameGap: 56,
+                data: industryRows.map((r) => r.label),
+                axisLabel: { rotate: 32, fontSize: 9, interval: 0 },
+              },
+              yAxis: { type: "value", name: "Expected calibrations" },
+              series: [
+                {
+                  name: "Expected calibrations",
+                  type: "bar",
+                  data: industryRows.map((r) => Math.round(r.expected)),
                 },
-                series: [
-                  {
-                    name: "Expected calibrations",
-                    type: "bar",
-                    data: industryRows.map((r) => Math.round(r.expected)),
-                  },
-                ],
-              }}
-            />
-          ) : (
-            <p>Industry forecast totals unavailable for this snapshot.</p>
-          )}
-        </Card>
-      </div>
+              ],
+            }}
+          />
+        ) : (
+          <p>Industry forecast totals unavailable for this snapshot.</p>
+        )}
+      </Card>
+      <Card>
+        <div className="card-heading">
+          <h2>Retention risk by industry</h2>
+          <InfoHint label="retention risk by industry">
+            Measured tiers from past silence episodes: of similarly silent
+            accounts, how many returned within three months. Higher risk
+            means fewer returned — a check-in signal, never a churn label.
+          </InfoHint>
+        </div>
+        {riskRows.length ? (
+          <Chart
+            label="Accounts by measured retention-risk tier per industry"
+            height={330}
+            option={{
+              tooltip: { trigger: "axis" },
+              legend: { type: "scroll" },
+              grid: { left: 60, right: 20, bottom: 80, top: 50 },
+              xAxis: {
+                type: "category",
+                name: "Accounts",
+                nameLocation: "middle",
+                nameGap: 56,
+                data: riskRows.map((r) => r.label),
+                axisLabel: { rotate: 32, fontSize: 9, interval: 0 },
+              },
+              yAxis: { type: "value", name: "Accounts" },
+              series: [
+                { name: "Higher risk", type: "bar", stack: "risk", data: riskRows.map((r) => r.higher) },
+                { name: "Moderate risk", type: "bar", stack: "risk", data: riskRows.map((r) => r.moderate) },
+                { name: "Lower risk", type: "bar", stack: "risk", data: riskRows.map((r) => r.lower) },
+              ],
+            }}
+          />
+        ) : (
+          <p>Retention tiers unavailable for this snapshot.</p>
+        )}
+      </Card>
       <div className="integrated-charts">
-        <Card>
-          <div className="card-heading">
-            <h2>Retention risk by industry</h2>
-            <InfoHint label="retention risk by industry">
-              Measured tiers from past silence episodes: of similarly silent
-              accounts, how many returned within three months. Higher risk
-              means fewer returned — a check-in signal, never a churn label.
-            </InfoHint>
-          </div>
-          {riskRows.length ? (
-            <Chart
-              label="Accounts by measured retention-risk tier per industry"
-              height={320}
-              option={{
-                tooltip: { trigger: "axis" },
-                legend: { type: "scroll" },
-                grid: { left: 150, right: 20, bottom: 35, top: 50 },
-                xAxis: { type: "value", name: "Accounts" },
-                yAxis: {
-                  type: "category",
-                  data: riskRows.map((r) => r.label),
-                  axisLabel: { fontSize: 10 },
-                },
-                series: [
-                  { name: "Higher risk", type: "bar", stack: "risk", data: riskRows.map((r) => r.higher) },
-                  { name: "Moderate risk", type: "bar", stack: "risk", data: riskRows.map((r) => r.moderate) },
-                  { name: "Lower risk", type: "bar", stack: "risk", data: riskRows.map((r) => r.lower) },
-                ],
-              }}
-            />
-          ) : (
-            <p>Retention tiers unavailable for this snapshot.</p>
-          )}
-        </Card>
         <Card>
           <div className="card-heading">
             <h2>Where the forecast is trustworthy</h2>
