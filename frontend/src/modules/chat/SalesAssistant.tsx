@@ -118,6 +118,7 @@ export function SalesAssistantProvider({ children }: { children: ReactNode }) {
       });
       setRunning(true);
       const abort = new AbortController();
+      const applied = new Set<string>();
       controller.current = abort;
       try {
         const page: Page =
@@ -179,7 +180,6 @@ export function SalesAssistantProvider({ children }: { children: ReactNode }) {
             .slice(-50)
             .map((a) => a.id),
         };
-        const applied = new Set<string>();
         await streamChat(text, context, threadId, abort.signal, (event) => {
           if (abort.signal.aborted) return;
           if (event.type === "part") {
@@ -206,6 +206,15 @@ export function SalesAssistantProvider({ children }: { children: ReactNode }) {
                   .join("\n"),
               };
             });
+          } else if (event.type === "speech") {
+            if (voiceTurn)
+              useSalesStore.getState().set({
+                voiceResponse: {
+                  id: event.id,
+                  text: event.text,
+                  kind: "progress",
+                },
+              });
           } else if (event.type === "workspace") {
             if (!applied.has(event.event.id)) {
               applied.add(event.event.id);
@@ -225,11 +234,13 @@ export function SalesAssistantProvider({ children }: { children: ReactNode }) {
               !abort.signal.aborted &&
               event.reply.message.trim()
             )
-              useSalesStore
-                .getState()
-                .set({
-                  voiceResponse: { id: assistantId, text: event.reply.message },
-                });
+              useSalesStore.getState().set({
+                voiceResponse: {
+                  id: assistantId,
+                  text: event.reply.message,
+                  kind: "final",
+                },
+              });
             updateAssistant((m) => ({
               ...m,
               text: event.reply.message,
@@ -245,6 +256,17 @@ export function SalesAssistantProvider({ children }: { children: ReactNode }) {
             error instanceof Error
               ? error.message
               : "Unable to complete the request.";
+          if (voiceTurn)
+            useSalesStore.getState().set({
+              voiceResponse: {
+                id: assistantId + "-error",
+                kind: "error",
+                text:
+                  (applied.size
+                    ? "Some workspace changes were applied. "
+                    : "") + message,
+              },
+            });
           updateAssistant((m) => ({
             ...m,
             text: m.text + "\n" + message,
