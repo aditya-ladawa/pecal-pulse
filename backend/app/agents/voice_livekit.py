@@ -91,7 +91,9 @@ class VoiceConnection:
             authorize(data)
             if self.committing:
                 raise rtc.RpcError(1500, "Please wait for transcription.")
-            self.session.interrupt()
+            # Awaited so the interruption is fully processed (and speech
+            # scheduling resumed) before the new turn opens its input.
+            await self.session.interrupt()
             self.session.clear_user_turn()
             self.turn_id = str(uuid4())
             self.spoken_turn = None
@@ -125,7 +127,12 @@ class VoiceConnection:
                 if not transcript or len(transcript) > 2000:
                     raise rtc.RpcError(1500, "No clear speech detected. Please try again.")
                 # Stream this immediately, without waiting for the LLM or a tool.
-                self.session.say("Ich schaue mir das an.", add_to_chat_ctx=False)
+                # The acknowledgement must never fail the turn: speech
+                # scheduling can still be paused after an interruption.
+                try:
+                    self.session.say("Ich schaue mir das an.", add_to_chat_ctx=False)
+                except RuntimeError:
+                    logger.warning("LiveKit acknowledgement skipped (scheduling paused)")
                 return json.dumps({"text": transcript, "turn_id": self.turn_id})
             except rtc.RpcError:
                 raise
