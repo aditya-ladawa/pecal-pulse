@@ -82,7 +82,7 @@ export class LiveKitVoice {
     await this.connecting;
   }
 
-  async start(deviceId: string) {
+  async start() {
     const epoch = ++this.epoch;
     // Called synchronously from the user's gesture, before network awaits.
     void this.room.startAudio().catch(() => {});
@@ -106,14 +106,7 @@ export class LiveKitVoice {
       await this.rpc("interrupt").catch(() => {});
       return false;
     }
-    await this.room.localParticipant.setMicrophoneEnabled(
-      true,
-      deviceId ? { deviceId: { exact: deviceId } } : undefined,
-    ).catch(async () => {
-      if (!deviceId) throw new Error("Microphone unavailable.");
-      // Selected input vanished (e.g. earphones unplugged); use the default.
-      await this.room.localParticipant.setMicrophoneEnabled(true);
-    });
+    await this.room.localParticipant.setMicrophoneEnabled(true);
     if (this.closed || epoch !== this.epoch) {
       await this.room.localParticipant.setMicrophoneEnabled(false);
       await this.rpc("interrupt").catch(() => {});
@@ -166,11 +159,6 @@ export class LiveKitVoice {
     return this.room.localParticipant.getTrackPublication(
       Track.Source.Microphone,
     );
-  }
-
-  /** Route Pulse's speech to the chosen speaker; "" follows the system default. */
-  setOutput(deviceId: string) {
-    return this.room.switchActiveDevice("audiooutput", deviceId || "default");
   }
 
   close() {
