@@ -1555,7 +1555,7 @@ table {
   box-shadow: -10px 0 50px #61734b12;
   display: flex;
   flex-direction: column;
-  z-index: 50;
+  z-index: 70;
   overflow: hidden;
 }
 .chat-drawer.expanded {
