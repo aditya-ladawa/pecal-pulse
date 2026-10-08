@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, type ReactNode } from "react";
 import Link from "next/link";
+import { motion, useReducedMotion } from "motion/react";
+import { AgentFeedback } from "./AgentFeedback";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
@@ -28,6 +30,7 @@ const nav = [
   { href: "/insights", label: "Insights", icon: ChartNoAxesCombined },
 ];
 export function AppShell({ children }: { children: ReactNode }) {
+  const reducedMotion = useReducedMotion();
   const v2 = useSalesStore((s) => s.v2),
     v2Error = useSalesStore((s) => s.v2Error);
   const pathname = usePathname(),
@@ -85,7 +88,11 @@ export function AppShell({ children }: { children: ReactNode }) {
         className={`app-shell horizontal-shell ${assistantOpen ? "assistant-open" : ""}`}
       >
         <header className="workspace-topnav">
-          <Link href="/dashboard" className="brand" aria-label="PeCal Pulse dashboard">
+          <Link
+            href="/dashboard"
+            className="brand"
+            aria-label="PeCal Pulse dashboard"
+          >
             <span className="brand-icon">
               p<span />
             </span>
@@ -120,7 +127,13 @@ export function AppShell({ children }: { children: ReactNode }) {
           </button>
         </header>
         <main className="main">
-          <div className="page-content">
+          <motion.div
+            key={pathname}
+            className="page-content"
+            initial={reducedMotion ? false : { opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: reducedMotion ? 0 : 0.22 }}
+          >
             {v2 ? (
               <IntegratedWorkspace />
             ) : (
@@ -130,9 +143,10 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </p>
               </div>
             )}
-          </div>
+          </motion.div>
         </main>
         <SalesAssistant />
+        <AgentFeedback />
         {notice && (
           <div className="toast" role="status">
             <Check size={16} />
