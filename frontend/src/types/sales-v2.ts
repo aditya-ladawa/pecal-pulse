@@ -113,6 +113,7 @@ export interface Detail {
     id: string;
     kind: string;
     instrument_id: string;
+    group_id: string | null;
     eligibility: string;
     stopped: boolean | null;
     window_start: string | null;
