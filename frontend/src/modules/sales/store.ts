@@ -20,7 +20,11 @@ import {
 interface SalesState {
   assistantSide: "left" | "right";
   voiceInputPending: boolean;
-  voiceResponse: { id: string; text: string } | null;
+  voiceResponse: {
+    id: string;
+    text: string;
+    kind?: "progress" | "final" | "error";
+  } | null;
   voiceResetRevision: number;
   agentFeedback: {
     id: string;

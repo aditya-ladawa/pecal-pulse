@@ -1,11 +1,12 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useAui, useAuiState } from "@assistant-ui/react";
-import { Square } from "lucide-react";
+import { Square, Volume2 } from "lucide-react";
 import { ParticlesOrb } from "@/components/voiceorb/particles-orb";
 import type { OrbState } from "@/components/voiceorb/orb-state";
 import { useSalesStore } from "@/modules/sales/store";
 import { captureVoice } from "./voice-capture";
+import { VoicePlayback } from "./voice-playback";
 
 async function voiceError(response: Response) {
   const data = await response.json().catch(() => null);
@@ -19,6 +20,19 @@ export function VoicePanel() {
   const aui = useAui();
   const running = useAuiState((s) => s.thread.isRunning);
   const response = useSalesStore((s) => s.voiceResponse);
+  const savedReply = useSalesStore(
+    (s) =>
+      s.messages
+        .slice()
+        .reverse()
+        .find(
+          (message) =>
+            message.role === "assistant" &&
+            message.status?.type !== "running" &&
+            message.text.trim(),
+        )?.text,
+  );
+  const replayText = response?.text || savedReply;
   const chatReady = useSalesStore(
     (s) =>
       s.apiStatus === "connected" && s.chatStatus?.configured && !s.chatLoading,
@@ -34,12 +48,33 @@ export function VoicePanel() {
   const capture = useRef<Awaited<ReturnType<typeof captureVoice>> | null>(null);
   const request = useRef<AbortController | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const output = useRef<AudioContext | null>(null);
-  const source = useRef<AudioBufferSourceNode | null>(null);
   const generation = useRef(0);
   const seen = useRef(response?.id);
   const mounted = useRef(true);
   const spaceHeld = useRef(false);
+  const playback = useRef<VoicePlayback | null>(null);
+  if (!playback.current)
+    playback.current = new VoicePlayback({
+      synthesize: async (text, signal) => {
+        const result = await fetch("/api/sales/voice/speak", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text }),
+          signal,
+        });
+        if (!result.ok) throw await voiceError(result);
+        return result.arrayBuffer();
+      },
+      onState: (value) => {
+        if (mounted.current) {
+          setState(value);
+          if (value === "speaking") setError("");
+        }
+      },
+      onError: (message) => {
+        if (mounted.current) setError(message);
+      },
+    });
   const cleanup = () => {
     generation.current++;
     request.current?.abort();
@@ -47,8 +82,7 @@ export function VoicePanel() {
     capture.current?.cancel();
     capture.current = null;
     if (timer.current) clearTimeout(timer.current);
-    source.current?.stop();
-    source.current = null;
+    playback.current?.cancel();
   };
   useEffect(() => {
     mounted.current = true;
@@ -66,49 +100,13 @@ export function VoicePanel() {
       mounted.current = false;
       abort.abort();
       cleanup();
-      void output.current?.close();
+      playback.current?.close();
     };
   }, []);
   useEffect(() => {
     if (!response || seen.current === response.id) return;
     seen.current = response.id;
-    const epoch = generation.current;
-    const abort = new AbortController();
-    request.current = abort;
-    setState("connecting");
-    fetch("/api/sales/voice/speak", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: response.text.slice(0, 12000) }),
-      signal: abort.signal,
-    })
-      .then(async (r) => {
-        if (!r.ok) throw await voiceError(r);
-        const data = await r.arrayBuffer();
-        if (!output.current || !mounted.current || epoch !== generation.current)
-          return;
-        const buffer = await output.current.decodeAudioData(data);
-        if (!mounted.current || epoch !== generation.current) return;
-        const audio = output.current.createBufferSource();
-        audio.buffer = buffer;
-        audio.connect(output.current.destination);
-        source.current = audio;
-        setState("speaking");
-        audio.onended = () => {
-          if (mounted.current && epoch === generation.current) {
-            source.current = null;
-            setState("idle");
-          }
-        };
-        audio.start();
-      })
-      .catch((e) => {
-        if (!abort.signal.aborted && mounted.current) {
-          setError(e.message);
-          setState("error");
-        }
-      });
-    return () => abort.abort();
+    playback.current?.enqueue(response);
   }, [response]);
   const submit = async () => {
     spaceHeld.current = false;
@@ -166,9 +164,7 @@ export function VoicePanel() {
     setState("connecting");
     const epoch = generation.current;
     try {
-      if (!output.current || output.current.state === "closed")
-        output.current = new AudioContext();
-      await output.current.resume();
+      await playback.current?.unlock();
       if (!mounted.current || epoch !== generation.current) return;
       const recording = await captureVoice({
         deviceId,
@@ -264,7 +260,8 @@ export function VoicePanel() {
       window.removeEventListener("blur", blur);
     };
   });
-  const displayed = running ? "thinking" : state;
+  const displayed =
+    state === "speaking" ? "speaking" : running ? "thinking" : state;
   const label = running
     ? "Stop response"
     : state === "listening"
@@ -303,20 +300,47 @@ export function VoicePanel() {
         </span>
       </button>
       <span className="voice-status" role="status">
-        {running
-          ? "Working…"
-          : state === "listening"
-            ? !hasSound
-              ? "Listening · waiting for microphone sound"
-              : spaceHeld.current
-                ? "Listening · release Space to send"
-                : "Listening · tap to send"
-            : state === "speaking"
-              ? "Speaking · tap to stop"
+        {state === "speaking"
+          ? "Speaking · tap to stop"
+          : running
+            ? "Working…"
+            : state === "listening"
+              ? !hasSound
+                ? "Listening · waiting for microphone sound"
+                : spaceHeld.current
+                  ? "Listening · release Space to send"
+                  : "Listening · tap to send"
               : state === "connecting"
                 ? "Connecting…"
                 : "Hold Space to speak · or tap"}
       </span>
+      {
+        <button
+          className="icon-button"
+          aria-label={replayText ? "Hear latest reply" : "Test speaker"}
+          title={replayText ? "Hear latest reply" : "Test speaker"}
+          disabled={!configured || state === "listening"}
+          onClick={() => {
+            setError("");
+            playback.current?.cancel();
+            void playback.current
+              ?.unlock()
+              .then(() =>
+                playback.current?.enqueue({
+                  text: replayText || "Pulse is ready. You can speak now.",
+                  kind: "final",
+                }),
+              )
+              .catch(() =>
+                setError(
+                  "Audio is blocked. Check the browser's site sound permission.",
+                ),
+              );
+          }}
+        >
+          <Volume2 size={17} />
+        </button>
+      }
       {microphone &&
         (devices.length > 1 ? (
           <select

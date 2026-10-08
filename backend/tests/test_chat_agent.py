@@ -20,6 +20,8 @@ class ToolModel(GenericFakeChatModel):
     def _stream(self, messages, stop=None, run_manager=None, **kwargs):
         message = next(self.messages)
         if message.tool_calls:
+            if message.content:
+                yield ChatGenerationChunk(message=AIMessageChunk(content=message.content))
             yield ChatGenerationChunk(message=AIMessageChunk(content="", tool_call_chunks=[
                 {"name":c["name"], "args":json.dumps(c["args"]), "id":c["id"], "index":i}
                 for i,c in enumerate(message.tool_calls)]))
@@ -40,6 +42,29 @@ class ChatAgentTests(unittest.IsolatedAsyncioTestCase):
 
     async def asyncTearDown(self):
         self.temp.cleanup()
+
+    async def test_spoken_progress_precedes_tool_and_final_reply(self):
+        progress = call("get_workspace_context")
+        progress.content = "Let me check the current page."
+        async with agent_lifespan(self.settings, model(progress, AIMessage(content="Here is the result."))) as service:
+            events = [event async for event in service.stream_reply(AgentChatRequest(message="Check the page"))]
+        speech = [(i, event) for i, event in enumerate(events) if event["type"] == "speech"]
+        tool = next(i for i, event in enumerate(events) if event["type"] == "part" and event["part"]["type"] == "tool-call")
+        self.assertEqual(len(speech), 1)
+        self.assertEqual(speech[0][1]["text"], "Let me check the current page.")
+        self.assertLess(speech[0][0], tool)
+        self.assertEqual(events[-1]["type"], "done")
+
+    async def test_customer_shortlist_limit_preserves_total_and_rejects_unbounded_reads(self):
+        async with agent_lifespan(self.settings, model(call("list_customers", {"limit": 1}), AIMessage(content="One account."),
+                call("list_customers", {"limit": 10000}), AIMessage(content="Please use a smaller list."))) as service:
+            first = await service.reply(AgentChatRequest(message="Show one account"))
+            result = next(p["result"] for p in first["content"] if p["type"] == "tool-call")
+            self.assertEqual(len(result["customers"]), 1)
+            self.assertGreater(result["total"], 1)
+            other = await service.reply(AgentChatRequest(message="Invalid large list"))
+            part = next(p for p in other["content"] if p["type"] == "tool-call")
+            self.assertTrue(part["isError"])
 
     async def test_dotenv_model_and_reasoning_reach_openrouter_request(self):
         from langchain_openrouter import ChatOpenRouter

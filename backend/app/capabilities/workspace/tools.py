@@ -60,8 +60,8 @@ def get_workspace_context(runtime: ToolRuntime[TurnContext]) -> dict:
             "chart_views": ["industry", "activity", "portfolio"]}
 
 @tool
-def list_customers(runtime: ToolRuntime[TurnContext], industry: str | None = None, segment: str | None = None, action: str | None = None, retention: Literal["all", "lower", "moderate", "higher"] | None = None, query: str | None = None, offset: int | None = None) -> dict:
-    """Read up to 50 accounts, inheriting current CUSTOMER filters unless specified. Use all/empty query to reset. Retention tiers are review signals, not churn probabilities. Does not change the UI. Use get_opportunity_cohort for date-scoped Dashboard members."""
+def list_customers(runtime: ToolRuntime[TurnContext], industry: str | None = None, segment: str | None = None, action: str | None = None, retention: Literal["all", "lower", "moderate", "higher"] | None = None, query: str | None = None, offset: int | None = None, limit: int = 10) -> dict:
+    """Read a short ranked account list (default 10; limit 1–50), inheriting current CUSTOMER filters. Request only as many accounts as needed. Use all/empty query to reset. Retention tiers are review signals, not churn probabilities. Does not change UI. Use get_opportunity_cohort for date-scoped Dashboard members."""
     runtime.context.consume()
     current = runtime.context.workspace.filters
     industry = industry if industry is not None else current.industry or "all"
@@ -72,11 +72,13 @@ def list_customers(runtime: ToolRuntime[TurnContext], industry: str | None = Non
     offset = runtime.context.workspace.customer_offset if offset is None else offset
     if offset < 0:
         raise ValueError("Offset must be nonnegative")
+    if not 1 <= limit <= 50:
+        raise ValueError("Limit must be between 1 and 50")
     if runtime.context.workspace.snapshot_id:
         result = api_v2.list_customers(snapshot_id=runtime.context.workspace.snapshot_id,
             industry_id=None if industry == "all" else industry, segment_id=None if segment == "all" else segment,
             action=None if action == "all" else action, retention=None if retention == "all" else retention,
-            query=query, sort="priority", limit=50, offset=offset)
+            query=query, sort="priority", limit=limit, offset=offset)
         for item in result["items"]:
             action = item.get("primary_action")
             if action:
@@ -86,7 +88,7 @@ def list_customers(runtime: ToolRuntime[TurnContext], industry: str | None = Non
     rows = service.filter_customers(Filters(industry=industry, segment=segment, action=action, query=query))
     return {"source": "mock", "total": len(rows), "customers": [
         {k: c[k] for k in ("id", "name", "industry", "segment", "action", "priority", "reason")}
-        for c in rows[:50]]}
+        for c in rows[offset:offset+limit]]}
 
 @tool
 def open_customer_preview(customer_id: str, runtime: ToolRuntime[TurnContext]) -> dict:

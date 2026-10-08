@@ -66,6 +66,7 @@ export type ChatStreamEvent =
   | { type: "delta"; index: number; delta: string }
   | { type: "workspace"; event: EventEnvelope }
   | { type: "done"; reply: ChatReply }
+  | { type: "speech"; id: string; text: string }
   | { type: "error"; message: string };
 
 export async function streamChat(
