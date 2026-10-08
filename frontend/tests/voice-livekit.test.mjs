@@ -48,6 +48,18 @@ test('rpc timeouts are millisecond-scale, never below the client 8000ms floor',a
  for(const {method,responseTimeout} of timeouts)assert.ok(responseTimeout>=8000,`${method} timeout ${responseTimeout} would expire instantly`);
  voice.close();
 });
+test('lost agent session rejoins once and retries start_turn',async()=>{
+ const s=setup();let failed=false;
+ const orig=s.voice.room.localParticipant.performRpc;
+ s.voice.room.localParticipant.performRpc=async p=>{
+  if(p.method==='start_turn'&&!failed){failed=true;throw new Error('Recipient disconnected');}
+  return orig(p);
+ };
+ assert.equal(await s.voice.start(''),true);
+ assert.ok(s.calls.includes('disconnect'));
+ assert.equal(s.calls.filter(c=>c==='connect').length,2);
+ s.voice.close();
+});
 test('warm room is reused and cancellation interrupts the remote speech',async()=>{
  const {voice,calls}=setup();await voice.start('');await voice.finish();await voice.cancel();await voice.start('');
  assert.equal(calls.filter(c=>c==='connect').length,1);assert.ok(calls.includes('interrupt'));voice.close();
