@@ -34,6 +34,7 @@ export function VoicePanel() {
   const generation = useRef(0);
   const seen = useRef(response?.id);
   const mounted = useRef(true);
+  const spaceHeld = useRef(false);
   const cleanup = () => {
     generation.current++;
     request.current?.abort();
@@ -105,6 +106,7 @@ export function VoicePanel() {
     return () => abort.abort();
   }, [response]);
   const submit = async () => {
+    spaceHeld.current = false;
     if (!capture.current) return;
     if (timer.current) clearTimeout(timer.current);
     const audio = capture.current.stop();
@@ -155,6 +157,7 @@ export function VoicePanel() {
       if (!output.current || output.current.state === "closed")
         output.current = new AudioContext();
       await output.current.resume();
+      if (!mounted.current || epoch !== generation.current) return;
       const recording = await captureVoice();
       if (!mounted.current || epoch !== generation.current) {
         recording.cancel();
@@ -174,6 +177,61 @@ export function VoicePanel() {
       }
     }
   };
+  useEffect(() => {
+    const editable = (target: EventTarget | null) =>
+      target instanceof HTMLElement &&
+      Boolean(
+        target.closest(
+          "input, textarea, select, [contenteditable='true'], [role='textbox'], a, button:not(.voice-orb-button), [role='button']:not(.voice-orb-button)",
+        ),
+      );
+    const down = (event: KeyboardEvent) => {
+      if (
+        event.code !== "Space" ||
+        editable(event.target) ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey
+      )
+        return;
+      if (!configured || !chatReady) return;
+      event.preventDefault();
+      if (
+        event.repeat ||
+        spaceHeld.current ||
+        running ||
+        (state !== "idle" && state !== "error")
+      )
+        return;
+      spaceHeld.current = true;
+      void tap();
+    };
+    const up = (event: KeyboardEvent) => {
+      if (event.code !== "Space" || !spaceHeld.current) return;
+      event.preventDefault();
+      spaceHeld.current = false;
+      if (capture.current) void submit();
+      else {
+        // Release during permission/setup: discard any recording that resolves later.
+        cleanup();
+        setState("idle");
+      }
+    };
+    const blur = () => {
+      if (!spaceHeld.current) return;
+      spaceHeld.current = false;
+      cleanup();
+      setState("idle");
+    };
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    window.addEventListener("blur", blur);
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+      window.removeEventListener("blur", blur);
+    };
+  });
   const displayed = running ? "thinking" : state;
   const label = running
     ? "Stop response"
@@ -189,13 +247,15 @@ export function VoicePanel() {
       <button
         className="voice-orb-button"
         aria-label={label}
+        aria-keyshortcuts="Space"
+        title="Hold Space to record; release to send. Or tap to start/stop."
         aria-pressed={state === "listening"}
         disabled={!configured || !chatReady}
         onClick={() => void tap()}
       >
         <ParticlesOrb
           state={!configured || !chatReady ? "disabled" : displayed}
-          size={96}
+          size={120}
           colorFrom="#274c67"
           colorTo="#ff6f00"
           label={displayed}
@@ -215,12 +275,14 @@ export function VoicePanel() {
         {running
           ? "Working…"
           : state === "listening"
-            ? "Listening · tap to send"
+            ? spaceHeld.current
+              ? "Listening · release Space to send"
+              : "Listening · tap to send"
             : state === "speaking"
               ? "Speaking · tap to stop"
               : state === "connecting"
                 ? "Connecting…"
-                : "Tap to speak"}
+                : "Hold Space to speak · or tap"}
       </span>
       {error && (
         <p className="voice-error" role="alert">

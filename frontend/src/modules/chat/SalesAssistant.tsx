@@ -397,6 +397,7 @@ export function SalesAssistant() {
         </div>
       </div>
       <ThreadPrimitive.Root className="chat-thread">
+        <VoicePanel key={voiceResetRevision} />
         <ThreadPrimitive.Viewport className="chat-viewport">
           <ThreadPrimitive.Messages>
             {({ message }) =>
@@ -408,7 +409,6 @@ export function SalesAssistant() {
           <ArrowDown size={13} />
           Latest
         </ThreadPrimitive.ScrollToBottom>
-        <VoicePanel key={voiceResetRevision} />
       </ThreadPrimitive.Root>
     </aside>
   );
