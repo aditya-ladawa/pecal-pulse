@@ -15,7 +15,8 @@ import { openCustomer, dispatchEvent } from "@/core/events/router";
 import { Chart, ArtifactChart } from "@/modules/artifacts/Chart";
 import { InstrumentTiming } from "./InstrumentTiming";
 import { Card, InfoHint } from "@/components/ui/Primitives";
-import type { Bootstrap, Detail } from "@/types/sales-v2";
+import type { Bootstrap, Detail, InsightsEvidence } from "@/types/sales-v2";
+import type { ChartArtifact } from "@/types/sales";
 import type { EventEnvelope, PageSnapshot } from "@/types/sales";
 import {
   BatchReasonSummary,
@@ -443,11 +444,344 @@ export function IntegratedWorkspace() {
       </div>
     );
   if (pathname !== "/insights") return <OpportunityDashboard />;
+  return <InsightsView boot={boot} report={report} artifacts={s.artifacts} />;
+}
+function InsightsView({
+  boot,
+  report,
+  artifacts,
+}: {
+  boot: Bootstrap;
+  report: {
+    supported_customers: number;
+    selected_activity: string;
+    selected_volume: string;
+    activity_metrics: Record<string, { test: { roc_auc: number | null; brier: number } }>;
+    volume_metrics: Record<string, { test: { wape: number | null; mae: number } }>;
+  } | null;
+  artifacts: ChartArtifact[];
+}) {
+  const [evidence, setEvidence] = useState<InsightsEvidence | null>(null);
+  const [evidenceMissing, setEvidenceMissing] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    request<InsightsEvidence>(
+      `v2/insights-evidence?snapshot_id=${boot.metadata.snapshot_id}`,
+    )
+      .then((r) => {
+        if (alive) {
+          setEvidence(r);
+          setEvidenceMissing(!r.retention && !r.volume && !r.summary);
+        }
+      })
+      .catch(() => {
+        if (alive) setEvidenceMissing(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [boot.metadata.snapshot_id]);
   const sectors = boot.sectors;
-  const corr = sectors?.correlation;
+  const summary = evidence?.summary ?? null;
+  const retention = evidence?.retention ?? null;
+  const volume = evidence?.volume ?? null;
+  const dueMonths = summary?.due_calendar.months ?? [];
+  const industryRows = Object.entries(summary?.industry_expected ?? {})
+    .map(([id, v]) => ({ id, label: v.label || id, expected: v.expected || 0, accounts: v.accounts || 0 }))
+    .sort((a, b) => b.expected - a.expected)
+    .slice(0, 12);
+  const riskRows = Object.entries(summary?.retention_by_industry ?? {})
+    .map(([id, v]) => ({
+      id,
+      label: v.label || id,
+      higher: v.higher || 0,
+      moderate: v.moderate || 0,
+      lower: v.lower || 0,
+    }))
+    .sort((a, b) => b.higher + b.moderate - (a.higher + a.moderate))
+    .slice(0, 10);
+  const segmentRows = Object.entries(volume?.segment_test ?? {}).map(([id, v]) => ({
+    id,
+    label: v.label || id,
+    wape: v.wape,
+    n: v.n || 0,
+  }));
+  const challengerRows = Object.entries(volume?.challengers ?? {}).map(([method, stages]) => ({
+    method,
+    validationMae: stages.validation?.mae,
+    testMae: stages.test?.mae,
+    testWape: stages.test?.wape,
+  }));
+  const tiers = retention?.tier_distribution_at_reference ?? {};
   return (
     <>
-      <Heading title="Insights" text="Sector activity and model quality" />
+      <Heading title="Insights" text="Where the work is coming from, where risk sits, and how far to trust the numbers" />
+      {evidenceMissing && (
+        <Card>
+          <p>
+            Offline evidence is not published for this snapshot, so this page
+            shows sector history and model quality only. Rebuild the
+            retention/volume/insights sidecars for full detail.
+          </p>
+        </Card>
+      )}
+      <div className="integrated-charts">
+        <Card>
+          <div className="card-heading">
+            <h2>Calibration work coming due</h2>
+            <InfoHint label="due calendar">
+              Supported requirement windows starting per month, from recorded
+              and inferred due dates — evidence, not model output. Past-due
+              records need a timing check before any outreach.
+            </InfoHint>
+          </div>
+          {dueMonths.length ? (
+            <>
+              <Chart
+                label="Supported calibration requirements due per month, recorded versus inferred"
+                height={300}
+                option={{
+                  tooltip: { trigger: "axis" },
+                  legend: { type: "scroll" },
+                  grid: { left: 55, right: 20, bottom: 35, top: 50 },
+                  xAxis: { type: "category", data: dueMonths.map((m) => m.month) },
+                  yAxis: { type: "value", name: "Requirements" },
+                  series: [
+                    { name: "Recorded due date", type: "bar", stack: "due", data: dueMonths.map((m) => m.recorded) },
+                    { name: "Inferred window", type: "bar", stack: "due", data: dueMonths.map((m) => m.inferred) },
+                  ],
+                }}
+              />
+              <small>
+                {summary!.due_calendar.past_due.toLocaleString()} past-due
+                records predate the reference date; a passed date does not
+                prove outstanding work.
+              </small>
+            </>
+          ) : (
+            <p>Due-date evidence unavailable for this snapshot.</p>
+          )}
+        </Card>
+        <Card>
+          <div className="card-heading">
+            <h2>Expected calibrations by industry</h2>
+            <InfoHint label="expected calibrations by industry">
+              Sums of supported 3-month account forecasts per industry.
+              Directional totals for focus planning, not confirmed orders.
+            </InfoHint>
+          </div>
+          {industryRows.length ? (
+            <Chart
+              label="Supported expected calibrations for the next three months by industry"
+              height={300}
+              option={{
+                tooltip: { trigger: "axis" },
+                grid: { left: 150, right: 20, bottom: 35, top: 20 },
+                xAxis: { type: "value", name: "Calibrations" },
+                yAxis: {
+                  type: "category",
+                  data: industryRows.map((r) => r.label),
+                  axisLabel: { fontSize: 10 },
+                },
+                series: [
+                  {
+                    name: "Expected calibrations",
+                    type: "bar",
+                    data: industryRows.map((r) => Math.round(r.expected)),
+                  },
+                ],
+              }}
+            />
+          ) : (
+            <p>Industry forecast totals unavailable for this snapshot.</p>
+          )}
+        </Card>
+      </div>
+      <div className="integrated-charts">
+        <Card>
+          <div className="card-heading">
+            <h2>Retention risk by industry</h2>
+            <InfoHint label="retention risk by industry">
+              Measured tiers from past silence episodes: of similarly silent
+              accounts, how many returned within three months. Higher risk
+              means fewer returned — a check-in signal, never a churn label.
+            </InfoHint>
+          </div>
+          {riskRows.length ? (
+            <Chart
+              label="Accounts by measured retention-risk tier per industry"
+              height={320}
+              option={{
+                tooltip: { trigger: "axis" },
+                legend: { type: "scroll" },
+                grid: { left: 150, right: 20, bottom: 35, top: 50 },
+                xAxis: { type: "value", name: "Accounts" },
+                yAxis: {
+                  type: "category",
+                  data: riskRows.map((r) => r.label),
+                  axisLabel: { fontSize: 10 },
+                },
+                series: [
+                  { name: "Higher risk", type: "bar", stack: "risk", data: riskRows.map((r) => r.higher) },
+                  { name: "Moderate risk", type: "bar", stack: "risk", data: riskRows.map((r) => r.moderate) },
+                  { name: "Lower risk", type: "bar", stack: "risk", data: riskRows.map((r) => r.lower) },
+                ],
+              }}
+            />
+          ) : (
+            <p>Retention tiers unavailable for this snapshot.</p>
+          )}
+        </Card>
+        <Card>
+          <div className="card-heading">
+            <h2>Where the forecast is trustworthy</h2>
+            <InfoHint label="forecast reliability by behavior group">
+              Holdout error of the served volume baseline per behavior group:
+              aggregate absolute error over aggregate actual volume. Steady
+              high-volume accounts forecast far better than occasional ones.
+            </InfoHint>
+          </div>
+          {segmentRows.length ? (
+            <Chart
+              label="Holdout forecast error by customer behavior group"
+              height={320}
+              option={{
+                tooltip: {
+                  trigger: "axis",
+                  formatter: (p) => {
+                    const row = segmentRows[(p as { dataIndex: number }[])[0]?.dataIndex];
+                    return row
+                      ? `${row.label}<br/>WAPE ${row.wape == null ? "unavailable" : `${(row.wape * 100).toFixed(0)}%`} · ${row.n.toLocaleString()} past windows`
+                      : "";
+                  },
+                },
+                grid: { left: 150, right: 20, bottom: 35, top: 20 },
+                xAxis: {
+                  type: "value",
+                  name: "WAPE",
+                  axisLabel: { formatter: (v: number) => `${Math.round(v * 100)}%` },
+                },
+                yAxis: {
+                  type: "category",
+                  data: segmentRows.map((r) => r.label),
+                  axisLabel: { fontSize: 10 },
+                },
+                series: [
+                  {
+                    name: "Holdout WAPE",
+                    type: "bar",
+                    data: segmentRows.map((r) => (r.wape == null ? null : Number(r.wape.toFixed(3)))),
+                  },
+                ],
+              }}
+            />
+          ) : (
+            <p>Segment reliability unavailable for this snapshot.</p>
+          )}
+        </Card>
+      </div>
+      <div className="integrated-charts">
+        <Card>
+          <div className="card-heading">
+            <h2>Do silent customers come back?</h2>
+            <InfoHint label="measured return curve">
+              Of accounts that went silent after repeated activity, the share
+              that returned within the next three months, by elapsed silence.
+              Regular histories return more often; long silences return less.
+              Based on {(retention?.episodes || 0).toLocaleString()} fully
+              observed past episodes — still-silent episodes with unknown
+              outcomes are excluded, never counted as lost.
+            </InfoHint>
+          </div>
+          {retention ? (
+            <Chart
+              label="Share of silent accounts returning within three months, by elapsed silence"
+              height={300}
+              option={{
+                tooltip: { trigger: "axis" },
+                legend: { type: "scroll" },
+                grid: { left: 55, right: 20, bottom: 35, top: 50 },
+                xAxis: {
+                  type: "category",
+                  name: "Silent months",
+                  data: (retention.forward_curve.regular || []).map((p) => String(p.silent_months)),
+                },
+                yAxis: {
+                  type: "value",
+                  name: "Returned",
+                  min: 0,
+                  max: 1,
+                  axisLabel: { formatter: (v: number) => `${Math.round(v * 100)}%` },
+                },
+                series: (["regular", "irregular"] as const)
+                  .filter((k) => retention.forward_curve[k]?.length)
+                  .map((k) => ({
+                    name: k === "regular" ? "Regular history" : "Irregular history",
+                    type: "line",
+                    showSymbol: true,
+                    data: retention.forward_curve[k].map((p) => p.return_rate),
+                  })),
+              }}
+            />
+          ) : (
+            <p>Return-curve evidence unavailable for this snapshot.</p>
+          )}
+        </Card>
+        <Card>
+          <div className="card-heading">
+            <h2>Volume methods put to the test</h2>
+            <InfoHint label="volume method comparison">
+              Croston, TSB and industry-pooled estimators were scored on the
+              pipeline's own chronological validation windows with the same
+              MAE selection rule. The simple 12-month average still wins, so
+              it stays — this table is the receipt.
+            </InfoHint>
+          </div>
+          {challengerRows.length ? (
+            <div className="integrated-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Method</th>
+                    <th>Validation MAE</th>
+                    <th>Test MAE</th>
+                    <th>Test WAPE</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr key={volume!.served_method}>
+                    <td>{volume!.served_method.replaceAll("_", " ")} (served)</td>
+                    <td>
+                      {volume!.served_test.mae == null ? "—" : volume!.served_test.mae.toFixed(2)}
+                    </td>
+                    <td>
+                      {volume!.served_test.mae == null ? "—" : volume!.served_test.mae.toFixed(2)}
+                    </td>
+                    <td>
+                      {volume!.served_test.wape == null ? "—" : `${(volume!.served_test.wape * 100).toFixed(1)}%`}
+                    </td>
+                  </tr>
+                  {challengerRows.map((r) => (
+                    <tr key={r.method}>
+                      <td>{r.method.replaceAll("_", " ")}</td>
+                      <td>{r.validationMae == null ? "—" : r.validationMae.toFixed(2)}</td>
+                      <td>{r.testMae == null ? "—" : r.testMae.toFixed(2)}</td>
+                      <td>{r.testWape == null ? "—" : `${(r.testWape * 100).toFixed(1)}%`}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <small>
+                Lower MAE is better. Selection used validation only; test
+                columns are descriptive. Units are calibration events per
+                3-month window.
+              </small>
+            </div>
+          ) : (
+            <p>Method comparison unavailable for this snapshot.</p>
+          )}
+        </Card>
+      </div>
       <div className="integrated-charts">
         <Card>
           <h2>Sector activity</h2>
@@ -479,93 +813,55 @@ export function IntegratedWorkspace() {
             </p>
           )}
         </Card>
-        <Card>
-          <h2>Sector movement correlation</h2>
-          {corr ? (
-            <>
-              <Chart
-                label="Pearson correlation of monthly log changes by industry"
-                height={420}
-                option={{
-                  tooltip: {
-                    formatter: (p) => {
-                      const v = (p as { data: number[] }).data;
-                      return `${corr.labels[v[0]]} / ${corr.labels[v[1]]}<br/>Correlation: ${v[2].toFixed(2)} · ${corr.pair_sample_counts[v[1]][v[0]]} aligned changes`;
-                    },
-                  },
-                  grid: { left: 125, right: 30, top: 20, bottom: 120 },
-                  xAxis: {
-                    type: "category",
-                    data: corr.labels,
-                    axisLabel: { rotate: 55, fontSize: 9 },
-                  },
-                  yAxis: {
-                    type: "category",
-                    data: corr.labels,
-                    axisLabel: { fontSize: 9 },
-                  },
-                  visualMap: {
-                    min: -1,
-                    max: 1,
-                    show: false,
-                    inRange: { color: ["#edb482", "#f5f5ec", "#72966a"] },
-                  },
-                  series: [
-                    {
-                      type: "heatmap",
-                      data: corr.values.flatMap((row, y) =>
-                        row.flatMap((v, x) => (v == null ? [] : [[x, y, v]])),
-                      ),
-                    },
-                  ],
-                }}
-              />
-              <small>
-                {corr.method} · {corr.window_start}–{corr.window_end}. Blank
-                pairs lack support. Correlation does not establish causation or
-                predict sector direction.
-              </small>
-            </>
-          ) : (
-            <p>No supported correlation matrix.</p>
-          )}
-        </Card>
-      </div>
-      {sectors && (
-        <Card>
-          <h2>Next-month sector outlook</h2>
-          <p>
-            Separately evaluated one-step baselines; not derived from
-            correlation.
-          </p>
-          <div className="integrated-table">
-            <table>
-              <thead>
-                <tr>
-                  <th>Industry</th>
-                  <th>Month</th>
-                  <th>Expected calibrations</th>
-                  <th>Method</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sectors.forecasts.map((f) => (
-                  <tr key={f.industry_id}>
-                    <td>
-                      {
-                        sectors.history.find(
-                          (h) => h.industry_id === f.industry_id,
-                        )?.label
-                      }
-                    </td>
-                    <td>{f.forecast_month}</td>
-                    <td>{count(f.expected)}</td>
-                    <td>{f.method || "Insufficient history"}</td>
+        {sectors && (
+          <Card>
+            <h2>Next-month sector outlook</h2>
+            <p>
+              Separately evaluated one-step baselines for capacity planning,
+              not account prioritization.
+            </p>
+            <div className="integrated-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Industry</th>
+                    <th>Month</th>
+                    <th>Expected calibrations</th>
+                    <th>Method</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {sectors.forecasts.map((f) => (
+                    <tr key={f.industry_id}>
+                      <td>
+                        {
+                          sectors.history.find(
+                            (h) => h.industry_id === f.industry_id,
+                          )?.label
+                        }
+                      </td>
+                      <td>{f.forecast_month}</td>
+                      <td>{count(f.expected)}</td>
+                      <td>{f.method || "Insufficient history"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        )}
+      </div>
+      {tiers && Object.keys(tiers).length > 0 && (
+        <Card>
+          <h2>Retention tiers right now</h2>
+          <p>
+            {(tiers.lower || 0).toLocaleString()} lower risk ·{" "}
+            {(tiers.moderate || 0).toLocaleString()} moderate risk ·{" "}
+            {(tiers.higher || 0).toLocaleString()} higher risk ·{" "}
+            {(tiers.unavailable || 0).toLocaleString()} without enough history
+            for a tier. Filter these accounts on the Customers page under
+            Retention risk.
+          </p>
         </Card>
       )}
       {report && (
@@ -606,7 +902,7 @@ export function IntegratedWorkspace() {
           </small>
         </Card>
       )}
-      {s.artifacts.map((a) => (
+      {artifacts.map((a) => (
         <Card key={a.id}>
           <h2>{a.title}</h2>
           <ArtifactChart artifact={a} />

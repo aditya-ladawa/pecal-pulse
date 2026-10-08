@@ -124,6 +124,35 @@ def _retention_tiers(snapshot_id: str, customer_ids: list) -> dict[str, str]:
     return tiers
 
 
+@lru_cache(maxsize=8)
+def _insights_summary(snapshot_id: str) -> dict | None:
+    """Insights aggregation sidecar; absent if unpublished."""
+    import json
+
+    root = Path(os.getenv("PECAL_ANALYTICS_ROOT", str(ANALYTICS_DEFAULT_ROOT))).resolve()
+    path = root / snapshot_id / "insights_summary.json"
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if payload.get("snapshot_id") != snapshot_id:
+        return None
+    return payload
+
+
+@router.get("/insights-evidence")
+def insights_evidence(snapshot_id: str = DEFAULT_SNAPSHOT):
+    """Evidence bundle for the Insights page; each section is null when its
+    offline sidecar has not been published (e.g. synthetic mode)."""
+    _require_snapshot(snapshot_id)
+    return {
+        "metadata": _metadata(snapshot_id).model_dump(),
+        "retention": _retention_curve(snapshot_id),
+        "volume": _volume_reliability(snapshot_id),
+        "summary": _insights_summary(snapshot_id),
+    }
+
+
 def _retention_for_customer(snapshot_id: str, history) -> dict | None:
     sidecar = _retention_curve(snapshot_id)
     if not sidecar:

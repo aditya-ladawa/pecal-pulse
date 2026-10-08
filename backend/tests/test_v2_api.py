@@ -212,6 +212,24 @@ class V2ApiTests(unittest.TestCase):
         self.assertEqual(self.client.get("/api/health").status_code, 200)
         self.assertEqual(self.client.get("/api/bootstrap").status_code, 200)
 
+    def test_insights_evidence_falls_back_without_sidecars(self):
+        res = self.client.get(
+            "/api/v2/insights-evidence", params={"snapshot_id": SNAPSHOT}
+        )
+        self.assertEqual(res.status_code, 200)
+        body = res.json()
+        self.assertIsNone(body["retention"])
+        self.assertIsNone(body["volume"])
+        self.assertIsNone(body["summary"])
+
+    def test_retention_filter_without_sidecar_matches_nothing(self):
+        res = self.client.get(
+            "/api/v2/customers",
+            params={"snapshot_id": SNAPSHOT, "retention": "higher"},
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()["total"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -5,6 +5,42 @@ export interface Metadata {
   workflow_today: string;
   modules: Record<string, { status: string; reason: string | null }>;
 }
+export interface InsightsEvidence {
+  metadata: Metadata;
+  retention: {
+    version: string;
+    episodes: number;
+    forward_window_months: number;
+    forward_curve: Record<
+      string,
+      {
+        silent_months: number;
+        forward_window_months: number;
+        at_risk: number;
+        returned: number;
+        return_rate: number | null;
+      }[]
+    >;
+    tier_distribution_at_reference: Record<string, number>;
+  } | null;
+  volume: {
+    served_method: string;
+    served_test: { n?: number; mae?: number; wape?: number | null };
+    challengers: Record<string, Record<string, { mae?: number; wape?: number | null }>>;
+    segment_test: Record<string, { label?: string; wape?: number | null; n?: number }>;
+  } | null;
+  summary: {
+    due_calendar: {
+      months: { month: string; recorded: number; inferred: number }[];
+      past_due: number;
+    };
+    industry_expected: Record<string, { label?: string; expected?: number; accounts?: number }>;
+    retention_by_industry: Record<
+      string,
+      { label?: string; lower?: number; moderate?: number; higher?: number; unavailable?: number }
+    >;
+  } | null;
+}
 export interface Action {
   customer_id: string;
   primary_type: "upcoming" | "inactivity" | "discovery";
