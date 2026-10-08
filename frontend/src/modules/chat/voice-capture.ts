@@ -1,6 +1,18 @@
-export async function captureVoice() {
+export async function captureVoice(
+  options: {
+    deviceId?: string;
+    onLevel?: (level: number) => void;
+    onDevice?: (device: { id: string; label: string }) => void;
+  } = {},
+) {
   const stream = await navigator.mediaDevices.getUserMedia({
-    audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
+    audio: {
+      channelCount: 1,
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+      ...(options.deviceId ? { deviceId: { exact: options.deviceId } } : {}),
+    },
     video: false,
   });
   let context: AudioContext;
@@ -12,13 +24,22 @@ export async function captureVoice() {
   }
   const chunks: Float32Array[] = [];
   let length = 0;
+  let peak = 0;
+  let lastLevel = 0;
   let node: AudioWorkletNode | null = null;
   const release = () => {
+    if (node) node.port.onmessage = null;
     node?.disconnect();
     stream.getTracks().forEach((track) => track.stop());
+    options.onLevel?.(0);
     void context.close();
   };
   try {
+    const track = stream.getAudioTracks()[0];
+    options.onDevice?.({
+      id: track.getSettings().deviceId || "",
+      label: track.label || "Default microphone",
+    });
     await context.audioWorklet.addModule("/voice-capture.js");
     await context.resume();
     node = new AudioWorkletNode(context, "voice-capture");
@@ -26,6 +47,17 @@ export async function captureVoice() {
       if (length >= context.sampleRate * 45) return;
       chunks.push(event.data);
       length += event.data.length;
+      let energy = 0;
+      for (const value of event.data) {
+        peak = Math.max(peak, Math.abs(value));
+        energy += value * value;
+      }
+      if (length - lastLevel >= context.sampleRate / 10) {
+        lastLevel = length;
+        options.onLevel?.(
+          Math.min(1, Math.sqrt(energy / event.data.length) * 10),
+        );
+      }
     };
     const source = context.createMediaStreamSource(stream);
     const silent = context.createGain();
@@ -35,6 +67,14 @@ export async function captureVoice() {
       cancel: release,
       stop: () => {
         release();
+        if (length < context.sampleRate * 0.25)
+          throw new Error(
+            "Recording was too short. Wait for Listening, then speak while holding Space.",
+          );
+        if (peak < 0.00001)
+          throw new Error(
+            "No microphone sound recorded. Check that your microphone is unmuted or choose another input.",
+          );
         const buffer = new ArrayBuffer(44 + length * 2);
         const view = new DataView(buffer);
         const write = (offset: number, text: string) =>

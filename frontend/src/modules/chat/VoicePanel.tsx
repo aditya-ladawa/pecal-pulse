@@ -26,6 +26,11 @@ export function VoicePanel() {
   const [configured, setConfigured] = useState(false);
   const [state, setState] = useState<OrbState>("idle");
   const [error, setError] = useState("");
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
+  const [deviceId, setDeviceId] = useState("");
+  const [microphone, setMicrophone] = useState("");
+  const [hasSound, setHasSound] = useState(false);
+  const level = useRef(0);
   const capture = useRef<Awaited<ReturnType<typeof captureVoice>> | null>(null);
   const request = useRef<AbortController | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -109,13 +114,14 @@ export function VoicePanel() {
     spaceHeld.current = false;
     if (!capture.current) return;
     if (timer.current) clearTimeout(timer.current);
-    const audio = capture.current.stop();
+    const recording = capture.current;
     capture.current = null;
     const epoch = generation.current;
     const abort = new AbortController();
     request.current = abort;
     setState("connecting");
     try {
+      const audio = recording.stop();
       const result = await fetch("/api/sales/voice/transcribe", {
         method: "POST",
         body: audio,
@@ -133,7 +139,12 @@ export function VoicePanel() {
       });
     } catch (e) {
       if (!abort.signal.aborted && mounted.current) {
-        setError(e instanceof Error ? e.message : "Voice failed.");
+        const message = e instanceof Error ? e.message : "Voice failed.";
+        setError(
+          message.startsWith("No speech detected")
+            ? "Audio was captured, but no words were recognized. Try another microphone or speak more clearly after Listening appears."
+            : message,
+        );
         setState("error");
       }
     }
@@ -151,6 +162,7 @@ export function VoicePanel() {
     }
     cleanup();
     setError("");
+    setHasSound(false);
     setState("connecting");
     const epoch = generation.current;
     try {
@@ -158,13 +170,33 @@ export function VoicePanel() {
         output.current = new AudioContext();
       await output.current.resume();
       if (!mounted.current || epoch !== generation.current) return;
-      const recording = await captureVoice();
+      const recording = await captureVoice({
+        deviceId,
+        onLevel: (value) => {
+          level.current = value;
+          if (value > 0.001 && mounted.current && epoch === generation.current)
+            setHasSound(true);
+        },
+        onDevice: (device) => {
+          if (mounted.current && epoch === generation.current)
+            setMicrophone(device.label);
+        },
+      });
       if (!mounted.current || epoch !== generation.current) {
         recording.cancel();
         return;
       }
       capture.current = recording;
       setState("listening");
+      void navigator.mediaDevices
+        .enumerateDevices()
+        .then((available) => {
+          if (mounted.current && epoch === generation.current)
+            setDevices(
+              available.filter((device) => device.kind === "audioinput"),
+            );
+        })
+        .catch(() => {});
       timer.current = setTimeout(() => void submit(), 44000);
     } catch (e) {
       if (mounted.current && epoch === generation.current) {
@@ -255,6 +287,7 @@ export function VoicePanel() {
       >
         <ParticlesOrb
           state={!configured || !chatReady ? "disabled" : displayed}
+          levelRef={state === "listening" ? level : undefined}
           size={120}
           colorFrom="#274c67"
           colorTo="#ff6f00"
@@ -273,15 +306,40 @@ export function VoicePanel() {
         {running
           ? "Working…"
           : state === "listening"
-            ? spaceHeld.current
-              ? "Listening · release Space to send"
-              : "Listening · tap to send"
+            ? !hasSound
+              ? "Listening · waiting for microphone sound"
+              : spaceHeld.current
+                ? "Listening · release Space to send"
+                : "Listening · tap to send"
             : state === "speaking"
               ? "Speaking · tap to stop"
               : state === "connecting"
                 ? "Connecting…"
                 : "Hold Space to speak · or tap"}
       </span>
+      {microphone &&
+        (devices.length > 1 ? (
+          <select
+            className="voice-input-select"
+            aria-label="Microphone input"
+            value={deviceId}
+            disabled={
+              state === "listening" || state === "connecting" || running
+            }
+            onChange={(event) => setDeviceId(event.target.value)}
+          >
+            <option value="">Default · {microphone}</option>
+            {devices
+              .filter((device) => device.deviceId !== "default")
+              .map((device) => (
+                <option key={device.deviceId} value={device.deviceId}>
+                  {device.label || "Microphone"}
+                </option>
+              ))}
+          </select>
+        ) : (
+          <span className="voice-input-name">{microphone}</span>
+        ))}
       {error && (
         <p className="voice-error" role="alert">
           {error}

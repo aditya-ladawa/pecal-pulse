@@ -1570,6 +1570,8 @@ table {
 .voice-orb-button { position: relative; width: 124px; height: 124px; padding: 0; border: 0; border-radius: 50%; background: transparent; display: grid; place-items: center; }
 .voice-orb-button:focus-visible { outline: 2px solid #274c67; outline-offset: 3px; }
 .voice-orb-icon { position: absolute; inset: 0; display: grid; place-items: center; color: #274c67; pointer-events: none; }
+.voice-input-select { max-width: 100%; margin-top: 5px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 8px; background: transparent; font-size: 11px; }
+.voice-input-name { margin-top: 5px; font-size: 11px; color: var(--muted); }
 .voice-status { font-size: 12px; color: var(--muted); }
 .voice-error { margin: 8px 0 0; font-size: 12px; text-align: center; color: #9b3a25; }
 @media (max-width: 720px) {
