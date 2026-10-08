@@ -1,4 +1,4 @@
-import { Dashboard } from "@/modules/sales/Dashboard";
+import { LandingPage } from "@/components/landing/LandingPage";
 export default function Page() {
-  return <Dashboard />;
+  return <LandingPage />;
 }
