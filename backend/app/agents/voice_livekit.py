@@ -63,7 +63,7 @@ class VoiceConnection:
                            api_secret=self.settings.livekit_api_secret.get_secret_value(),
                            http_session=self.http)
         self.session = AgentSession(
-            stt=inference.STT(model="deepgram/nova-3", language="multi", **credentials),
+            stt=inference.STT(model="deepgram/nova-3", language="de", **credentials),
             tts=inference.TTS(model="cartesia/sonic-3", voice="9626c31c-bec5-4cca-baa8-f8ba9e84c8bc",
                                language="de", **credentials),
             vad=None,
