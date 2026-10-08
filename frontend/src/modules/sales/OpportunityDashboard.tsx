@@ -221,19 +221,24 @@ export function OpportunityDashboard() {
           trigger: "item",
           renderMode: "richText",
           formatter: (params) => {
-            const p = (
-              params as unknown as {
-                data: {
-                  point?: OpportunityPoint;
-                  cluster?: string;
-                  groupLabel?: string;
-                };
-              }
-            ).data;
-            if (p.cluster) return `${p.groupLabel}\nClick to select this group`;
-            const c = p.point;
-            return c
-              ? `${c.display_name}\n${c.industry_label} · ${c.segment_label || "Unassigned segment"}\nUrgency percentile ${format(c.urgency_score)} · size percentile ${format(c.size_score)}\n${c.size_basis?.replaceAll("_", " ")}\n${c.due_recorded + c.due_inferred} due instruments\nClick to prepare conversation`
+            // Custom region polygons fire item tooltips without a data
+            // payload; fall back to the series name instead of crashing.
+            const raw = params as unknown as {
+              data?: {
+                point?: OpportunityPoint;
+                cluster?: string;
+                groupLabel?: string;
+              };
+              seriesName?: string;
+            };
+            const p = raw.data;
+            if (p?.cluster) return `${p.groupLabel}\nClick to select this group`;
+            const c = p?.point;
+            if (c)
+              return `${c.display_name}\n${c.industry_label} · ${c.segment_label || "Unassigned segment"}\nUrgency percentile ${format(c.urgency_score)} · size percentile ${format(c.size_score)}\n${c.size_basis?.replaceAll("_", " ")}\n${c.due_recorded + c.due_inferred} due instruments\nClick to prepare conversation`;
+            const region = raw.seriesName?.replace(/ region$/, "");
+            return region && region !== raw.seriesName
+              ? `${region}\nClick to select this group`
               : "";
           },
         },
