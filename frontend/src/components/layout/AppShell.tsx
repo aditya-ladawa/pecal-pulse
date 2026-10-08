@@ -23,7 +23,7 @@ import {
   SalesAssistantProvider,
 } from "@/modules/chat/SalesAssistant";
 const nav = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/customers", label: "Customers", icon: UsersRound },
   { href: "/insights", label: "Insights", icon: ChartNoAxesCombined },
 ];
@@ -39,7 +39,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       (s) => s.data.followups.filter((f) => f.status === "open").length,
     ),
     set = useSalesStore((s) => s.set);
+  const isLanding = pathname === "/";
   useEffect(() => {
+    if (isLanding) return;
     let active = true;
     getV2Bootstrap()
       .then(async (boot) => {
@@ -64,10 +66,10 @@ export function AppShell({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
-  }, [set]);
+  }, [set, isLanding]);
   useEffect(() => {
     if (request) {
-      router.push(request === "dashboard" ? "/" : `/${request}`);
+      router.push(request === "dashboard" ? "/dashboard" : `/${request}`);
       set({ requestedPage: null });
     }
   }, [request, router, set]);
@@ -76,13 +78,14 @@ export function AppShell({ children }: { children: ReactNode }) {
     const timer = setTimeout(() => set({ notice: "" }), 3500);
     return () => clearTimeout(timer);
   }, [notice, set]);
+  if (isLanding) return <div className="landing-root">{children}</div>;
   return (
     <SalesAssistantProvider>
       <div
         className={`app-shell horizontal-shell ${assistantOpen ? "assistant-open" : ""}`}
       >
         <header className="workspace-topnav">
-          <Link href="/" className="brand" aria-label="PeCal Pulse dashboard">
+          <Link href="/dashboard" className="brand" aria-label="PeCal Pulse dashboard">
             <span className="brand-icon">
               p<span />
             </span>
