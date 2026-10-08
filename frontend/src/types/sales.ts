@@ -11,6 +11,7 @@ export type CustomerFilters = {
   industry: string;
   segment: string;
   action: ActionType | "all";
+  retention: "all" | "lower" | "moderate" | "higher";
   query: string;
 };
 export interface Customer {

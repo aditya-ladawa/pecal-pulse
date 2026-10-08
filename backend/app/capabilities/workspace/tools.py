@@ -98,10 +98,10 @@ def get_customer_evidence(runtime: ToolRuntime[TurnContext], customer_id: str = 
             "customer": service.customer(customer_id or runtime.context.workspace.customer_id)}
 
 @tool
-def set_customer_filters(runtime: ToolRuntime[TurnContext], industry: str | None = None, segment: str | None = None, action: str | None = None, query: str | None = None) -> dict:
-    """Set exact dropdown/search values. Use 'all' to reset a dropdown. Navigate separately if needed."""
+def set_customer_filters(runtime: ToolRuntime[TurnContext], industry: str | None = None, segment: str | None = None, action: str | None = None, retention: str | None = None, query: str | None = None) -> dict:
+    """Set exact dropdown/search values. Use 'all' to reset a dropdown. Action values: upcoming (shown as Calibration need), inactivity (Reduced activity), discovery (Service to explore). Retention is a measured risk tier (lower/moderate/higher). Navigate separately if needed."""
     runtime.context.consume()
-    filters = Filters(industry=industry, segment=segment, action=action, query=query)
+    filters = Filters(industry=industry, segment=segment, action=action, retention=retention, query=query)
     sid = runtime.context.workspace.snapshot_id
     options = {p.industry_id or "unknown" for p in data.list_customers(sid)} if sid else set(service.FIXTURE["sector_labels"])
     if sid and segment not in (None, "all"):
@@ -130,7 +130,7 @@ def select_customer(customer_id: str, runtime: ToolRuntime[TurnContext]) -> dict
         data.get_customer_detail(runtime.context.workspace.snapshot_id, customer_id)
     else:
         service.customer(customer_id)
-    filters = {"industry": "all", "segment": "all", "action": "all", "query": ""}
+    filters = {"industry": "all", "segment": "all", "action": "all", "retention": "all", "query": ""}
     emit(runtime, "customers.filters.set", filters)
     runtime.context.workspace.filters = Filters(**filters)
     runtime.context.workspace.customer_id = customer_id

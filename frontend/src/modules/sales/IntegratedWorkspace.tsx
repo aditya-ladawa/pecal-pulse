@@ -138,6 +138,7 @@ export function IntegratedWorkspace() {
     s.filters.industry,
     s.filters.segment,
     s.filters.action,
+    s.filters.retention,
     s.filters.query,
   ]);
   useEffect(() => {
@@ -311,11 +312,40 @@ export function IntegratedWorkspace() {
                 }
               >
                 <option value="all">All actions</option>
-                {boot.filter_options.actions.map((o) => (
-                  <option key={o} value={o}>
-                    {o}
-                  </option>
-                ))}
+                {(
+                  [
+                    ["upcoming", "Calibration need"],
+                    ["inactivity", "Reduced activity"],
+                    ["discovery", "Service to explore"],
+                  ] as const
+                ).map(
+                  ([value, label]) =>
+                    boot.filter_options.actions.includes(value) && (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ),
+                )}
+              </select>
+            </label>
+            <label>
+              Retention risk
+              <select
+                aria-label="Retention risk"
+                value={s.filters.retention}
+                onChange={(e) =>
+                  s.set({
+                    filters: {
+                      ...s.filters,
+                      retention: e.target.value as typeof s.filters.retention,
+                    },
+                  })
+                }
+              >
+                <option value="all">All risks</option>
+                <option value="higher">Higher risk</option>
+                <option value="moderate">Moderate risk</option>
+                <option value="lower">Lower risk</option>
               </select>
             </label>
             <label>

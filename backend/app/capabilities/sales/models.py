@@ -13,6 +13,7 @@ class Filters(StrictModel):
     industry: str | None = None
     segment: str | None = Field(default=None, max_length=100)
     action: Literal["all", "upcoming", "inactivity", "discovery"] | None = None
+    retention: Literal["all", "lower", "moderate", "higher"] | None = None
     query: str | None = None
 
 

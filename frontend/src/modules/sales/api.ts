@@ -136,6 +136,7 @@ export function getV2Customers(
   if (filters.industry !== "all") query.set("industry_id", filters.industry);
   if (filters.segment !== "all") query.set("segment_id", filters.segment);
   if (filters.action !== "all") query.set("action", filters.action);
+  if (filters.retention !== "all") query.set("retention", filters.retention);
   if (filters.query) query.set("query", filters.query);
   return request<import("@/types/sales-v2").CustomerList>(
     `v2/customers?${query}`,
