@@ -7,6 +7,7 @@ import { ParticlesOrb } from "@/components/voiceorb/particles-orb";
 import { createLiveKitAdapter } from "@/components/voiceorb/create-livekit-adapter";
 import type { OrbState } from "@/components/voiceorb/orb-state";
 import { useSalesStore } from "@/modules/sales/store";
+import { pickAudioDevice } from "./audio-devices";
 import { LiveKitVoice } from "./voice-livekit";
 
 export function VoicePanel() {
@@ -56,21 +57,27 @@ export function VoicePanel() {
   const refreshDevices = useCallback(async () => {
     try {
       const all = await navigator.mediaDevices?.enumerateDevices();
-      if (!all) return { inputs: [], outputs: [] };
+      if (!all)
+        return { inputs: [], outputs: [], mic: "", spk: "" };
       const inputs = all.filter((d) => d.kind === "audioinput");
       const outs = all.filter((d) => d.kind === "audiooutput");
       setDevices(inputs);
       setOutputs(outs);
-      // A saved earphone may be unplugged; never keep a vanished device.
-      setDeviceId((id) =>
-        id && inputs.some((d) => d.deviceId === id) ? id : "",
+      // An explicit choice wins while plugged in; otherwise earphones
+      // (e.g. OnePlus Buds 3) are picked automatically by label.
+      const mic = pickAudioDevice(
+        inputs.map((d) => ({ deviceId: d.deviceId, label: d.label || "" })),
+        localStorage.getItem("pecal-voice-mic") || "",
       );
-      setOutputId((id) =>
-        id && outs.some((d) => d.deviceId === id) ? id : "",
+      const spk = pickAudioDevice(
+        outs.map((d) => ({ deviceId: d.deviceId, label: d.label || "" })),
+        localStorage.getItem("pecal-voice-speaker") || "",
       );
-      return { inputs, outputs: outs };
+      setDeviceId(mic);
+      setOutputId(spk);
+      return { inputs, outputs: outs, mic, spk };
     } catch {
-      return { inputs: [], outputs: [] };
+      return { inputs: [], outputs: [], mic: "", spk: "" };
     }
   }, []);
 
@@ -118,6 +125,21 @@ export function VoicePanel() {
       client.close();
     };
   }, []);
+
+  useEffect(() => {
+    if (!voice || !outputId || !outputSupported) return;
+    void voice
+      .setOutput(outputId)
+      .then((ok) => {
+        if (!ok && mounted.current)
+          setError(
+            "This browser kept the system speaker. Use Chrome or Edge to route Pulse elsewhere.",
+          );
+      })
+      .catch(() => {
+        if (mounted.current) setError("Could not switch speaker output.");
+      });
+  }, [voice, outputId, outputSupported]);
 
   useEffect(() => {
     if (!voice || !response || seen.current === response.id) return;
@@ -175,17 +197,15 @@ export function VoicePanel() {
     setSpeaking(false);
     const epoch = ++generation.current;
     try {
-      const { inputs } = await refreshDevices();
-      const mic =
-        deviceId && inputs.some((d) => d.deviceId === deviceId)
-          ? deviceId
-          : "";
+      const { mic, spk } = await refreshDevices();
       if (
         !(await voice.start(mic)) ||
         !mounted.current ||
         epoch !== generation.current
       )
         return;
+      if (spk && outputSupported)
+        await voice.setOutput(spk).catch(() => {});
       listening.current = true;
       setState("listening");
       adapter?.setTrack({ publication: voice.microphone() });
@@ -337,7 +357,12 @@ export function VoicePanel() {
             title="Microphone for the next voice turn"
             value={deviceId}
             disabled={active}
-            onChange={(e) => setDeviceId(e.target.value)}
+            onChange={(e) => {
+              const id = e.target.value;
+              setDeviceId(id);
+              if (id) localStorage.setItem("pecal-voice-mic", id);
+              else localStorage.removeItem("pecal-voice-mic");
+            }}
           >
             <option value="">Default · {microphone}</option>
             {devices
@@ -362,18 +387,8 @@ export function VoicePanel() {
             onChange={(e) => {
               const id = e.target.value;
               setOutputId(id);
-              void voice
-                ?.setOutput(id)
-                .then((ok) => {
-                  if (!ok && mounted.current)
-                    setError(
-                      "This browser kept the system speaker. Use Chrome or Edge to route Pulse elsewhere.",
-                    );
-                })
-                .catch(() => {
-                  if (mounted.current)
-                    setError("Could not switch speaker output.");
-                });
+              if (id) localStorage.setItem("pecal-voice-speaker", id);
+              else localStorage.removeItem("pecal-voice-speaker");
             }}
           >
             <option value="">Speakers · System default</option>
