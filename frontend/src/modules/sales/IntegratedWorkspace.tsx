@@ -261,76 +261,76 @@ export function IntegratedWorkspace() {
     return (
       <div className="customers-workspace">
         <div className="customers-toolbar">
+          <div className="filters integrated-filters">
+            <label>
+              Industry
+              <select
+                aria-label="Industry"
+                value={s.filters.industry}
+                onChange={(e) =>
+                  s.set({ filters: { ...s.filters, industry: e.target.value } })
+                }
+              >
+                <option value="all">All industries</option>
+                {boot.filter_options.industries.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Segment
+              <select
+                aria-label="Customer segment"
+                value={s.filters.segment}
+                onChange={(e) =>
+                  s.set({ filters: { ...s.filters, segment: e.target.value } })
+                }
+              >
+                <option value="all">All segments</option>
+                {boot.filter_options.segments.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Purpose
+              <select
+                aria-label="Action purpose"
+                value={s.filters.action}
+                onChange={(e) =>
+                  s.set({
+                    filters: {
+                      ...s.filters,
+                      action: e.target.value as typeof s.filters.action,
+                    },
+                  })
+                }
+              >
+                <option value="all">All actions</option>
+                {boot.filter_options.actions.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Search
+              <input
+                aria-label="Search customers"
+                value={s.filters.query}
+                onChange={(e) =>
+                  s.set({ filters: { ...s.filters, query: e.target.value } })
+                }
+                placeholder="Account name or ID"
+              />
+            </label>
+          </div>
           <CustomerViews />
-        </div>
-        <div className="filters integrated-filters">
-          <label>
-            Industry
-            <select
-              aria-label="Industry"
-              value={s.filters.industry}
-              onChange={(e) =>
-                s.set({ filters: { ...s.filters, industry: e.target.value } })
-              }
-            >
-              <option value="all">All industries</option>
-              {boot.filter_options.industries.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Segment
-            <select
-              aria-label="Customer segment"
-              value={s.filters.segment}
-              onChange={(e) =>
-                s.set({ filters: { ...s.filters, segment: e.target.value } })
-              }
-            >
-              <option value="all">All segments</option>
-              {boot.filter_options.segments.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Purpose
-            <select
-              aria-label="Action purpose"
-              value={s.filters.action}
-              onChange={(e) =>
-                s.set({
-                  filters: {
-                    ...s.filters,
-                    action: e.target.value as typeof s.filters.action,
-                  },
-                })
-              }
-            >
-              <option value="all">All actions</option>
-              {boot.filter_options.actions.map((o) => (
-                <option key={o} value={o}>
-                  {o}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Search
-            <input
-              aria-label="Search customers"
-              value={s.filters.query}
-              onChange={(e) =>
-                s.set({ filters: { ...s.filters, query: e.target.value } })
-              }
-              placeholder="Account name or ID"
-            />
-          </label>
         </div>
         {error && <p role="alert">{error}</p>}
         <div className="integrated-customer-grid">
@@ -681,55 +681,78 @@ export function CustomerEvidence({
     <>
       <Card className="customer-detail-header">
         <div className="customer-header-layout">
-          <div className="customer-account-identity">
-            <h2>{d.profile.display_name}</h2>
-            <p>{d.profile.industry_label || "Sector not supplied"}</p>
+          <div className="customer-header-main">
+            <div className="customer-account-identity">
+              <h2>{d.profile.display_name}</h2>
+              <p>{d.profile.industry_label || "Sector not supplied"}</p>
+            </div>
+            <div
+              className="customer-tabs"
+              role="tablist"
+              aria-label="Customer evidence sections"
+            >
+              {(["activity", "portfolio", "next-step"] as const).map((tab) => (
+                <button
+                  role="tab"
+                  aria-selected={s.customerTab === tab}
+                  key={tab}
+                  onClick={() => s.set({ customerTab: tab })}
+                >
+                  {tab === "activity"
+                    ? "Overview"
+                    : tab === "portfolio"
+                      ? "Equipment"
+                      : "Next step"}
+                </button>
+              ))}
+            </div>
           </div>
           {s.customerTab === "activity" && (
             <div className="customer-forecast-summary">
-              <span>Outlook: {period}</span>
-              <span>History through {d.metadata.reference_date}</span>
-              <strong>
-                Chance of calibration activity{" "}
-                <b>
-                  {prediction?.activity.probability == null
-                    ? "Unavailable"
-                    : `${(prediction.activity.probability * 100).toFixed(1)}%`}
-                </b>
-                <InfoHint label="chance of calibration activity">
-                  {prediction?.activity.probability == null
-                    ? prediction?.activity.support.reason ||
-                      "There is not enough history to estimate calibration activity."
-                    : "Chance of at least one calibration in the three-month outlook. This is not a probability of an order, churn or sales conversion."}
-                </InfoHint>
-              </strong>
+              <span className="forecast-meta">
+                Outlook: {period} · History through {d.metadata.reference_date}
+              </span>
+              <div className="forecast-boxes">
+                <div className="forecast-box">
+                  <span>
+                    Chance of calibration activity{" "}
+                    <InfoHint label="chance of calibration activity">
+                      {prediction?.activity.probability == null
+                        ? prediction?.activity.support.reason ||
+                          "There is not enough history to estimate calibration activity."
+                        : "Chance of at least one calibration in the three-month outlook. This is not a probability of an order, churn or sales conversion."}
+                    </InfoHint>
+                  </span>
+                  <b>
+                    {prediction?.activity.probability == null
+                      ? "Unavailable"
+                      : `${(prediction.activity.probability * 100).toFixed(1)}%`}
+                  </b>
+                </div>
+                <div className="forecast-box">
+                  <span>
+                    Estimated next 3 months{" "}
+                    <InfoHint label="estimated calibrations next three months">
+                      {forecastSupported
+                        ? `Rough quarter-total estimate from this account's history through ${d.metadata.reference_date}. Monthly predictions and uncertainty intervals are not supplied.`
+                        : volume?.support.reason ||
+                          "Insufficient history for a supported forecast."}
+                    </InfoHint>
+                  </span>
+                  <b>
+                    {forecastSupported
+                      ? `≈ ${Math.round(volume!.expected_total!)} calibrations`
+                      : "Unavailable"}
+                  </b>
+                </div>
+              </div>
             </div>
           )}
-        </div>
-        <div
-          className="customer-tabs"
-          role="tablist"
-          aria-label="Customer evidence sections"
-        >
-          {(["activity", "portfolio", "next-step"] as const).map((tab) => (
-            <button
-              role="tab"
-              aria-selected={s.customerTab === tab}
-              key={tab}
-              onClick={() => s.set({ customerTab: tab })}
-            >
-              {tab === "activity"
-                ? "Overview"
-                : tab === "portfolio"
-                  ? "Equipment"
-                  : "Next step"}
-            </button>
-          ))}
         </div>
       </Card>
       {s.customerTab === "activity" ? (
         <>
-          <Card>
+          <Card className="customer-activity-card">
             <div className="card-heading">
               <h2>Customer activity</h2>
               <select
@@ -778,11 +801,11 @@ export function CustomerEvidence({
               </InfoHint>
             </div>
             <Chart
-              height={300}
+              height={340}
               label={`${d.profile.display_name} historical calibrations and shaded three-month forecast window`}
               option={{
                 tooltip: { trigger: "axis" },
-                grid: { left: 48, right: 16, bottom: 45, top: 60 },
+                grid: { left: 48, right: 16, bottom: 40, top: 56 },
                 xAxis: {
                   type: "category",
                   data: [
@@ -804,16 +827,23 @@ export function CustomerEvidence({
                       ? {
                           silent: true,
                           itemStyle: {
-                            color: "rgba(160, 146, 193, 0.28)",
-                            borderColor: "rgba(112, 91, 151, 0.42)",
-                            borderWidth: 1,
+                            color: "rgba(160, 146, 193, 0.32)",
+                            borderColor: "rgba(112, 91, 151, 0.55)",
+                            borderWidth: 1.5,
                           },
                           label: {
                             show: true,
                             position: "insideTop",
-                            color: "#49365f",
-                            fontSize: 13,
-                            fontWeight: 700,
+                            distance: 6,
+                            color: "#3a2a52",
+                            fontSize: 16,
+                            fontWeight: 800,
+                            lineHeight: 20,
+                            backgroundColor: "rgba(255, 255, 255, 0.94)",
+                            padding: [8, 12],
+                            borderRadius: 10,
+                            borderColor: "rgba(112, 91, 151, 0.35)",
+                            borderWidth: 1,
                             formatter: `3-month total\n${forecastSupported ? `≈ ${Math.round(volume!.expected_total!)} calibrations` : "Insufficient history"}`,
                           },
                           data: [
