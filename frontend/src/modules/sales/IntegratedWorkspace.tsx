@@ -787,6 +787,11 @@ export function CustomerEvidence({
                         ? `Historical forecast error: ${(forecastQuality.wape * 100).toFixed(0)}% WAPE across ${forecastQuality.test_windows?.toLocaleString() ?? "supported"} test windows${forecastQuality.test_customers != null ? ` from ${forecastQuality.test_customers.toLocaleString()} customers` : ""}. Total absolute error divided by total actual volume; not this customer's accuracy.`
                         : "Historical forecast error is unavailable."}
                     </p>
+                    {forecastQuality?.segment_wape != null && (
+                      <p>
+                        {`Accounts like this (${forecastQuality.segment_label ?? "same behavior group"}): about ${(forecastQuality.segment_wape * 100).toFixed(0)}% aggregate error on ${forecastQuality.segment_windows?.toLocaleString() ?? "supported"} past windows. Estimates for steady high-volume accounts are far more reliable than for occasional ones.`}
+                      </p>
+                    )}
                     <p>
                       This is a rough volume estimate. Monthly predictions have
                       not been validated.
