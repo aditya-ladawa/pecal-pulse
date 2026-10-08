@@ -23,6 +23,7 @@ export class LiveKitVoice {
   private turnId: string | undefined;
   private closed = false;
   private recording = false;
+  private expectDisconnect = false;
 
   constructor(
     private callbacks: {
@@ -44,7 +45,7 @@ export class LiveKitVoice {
       }
     });
     this.room.on(RoomEvent.Disconnected, () => {
-      if (!this.closed)
+      if (!this.closed && !this.expectDisconnect)
         callbacks.onError("Voice disconnected. Tap the orb to reconnect.");
     });
   }
@@ -87,7 +88,20 @@ export class LiveKitVoice {
     void this.room.startAudio().catch(() => {});
     await this.connect();
     if (this.closed || epoch !== this.epoch) return false;
-    await this.rpc("start_turn");
+    try {
+      await this.rpc("start_turn");
+    } catch {
+      // The agent session may be gone (900s expiry or API restart) while this
+      // tab stayed open. Rejoin once so the backend respawns it, then retry.
+      this.expectDisconnect = true;
+      try {
+        await this.room.disconnect().catch(() => {});
+        await this.connect();
+      } finally {
+        this.expectDisconnect = false;
+      }
+      await this.rpc("start_turn");
+    }
     if (this.closed || epoch !== this.epoch) {
       await this.rpc("interrupt").catch(() => {});
       return false;
