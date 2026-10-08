@@ -285,10 +285,10 @@ export function OpportunityDashboard() {
               style: {
                 fill: c.color,
                 opacity: !data.selected_cluster
-                  ? 0.09
+                  ? 0.20
                   : data.selected_cluster === c.id
-                    ? 0.18
-                    : 0.025,
+                    ? 0.32
+                    : 0.10,
                 stroke: c.color,
                 lineWidth: data.selected_cluster === c.id ? 2 : 1,
               },
