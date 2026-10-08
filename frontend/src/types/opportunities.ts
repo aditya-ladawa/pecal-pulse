@@ -40,6 +40,7 @@ export interface OpportunityPoint {
   forecast_start: string | null;
   forecast_end: string | null;
   priority_score: number;
+  priority_components?: Record<string, number | null>;
   reasons: string[];
   reason_types: string[];
   next_action: string;
@@ -50,6 +51,8 @@ export interface OpportunityPoint {
 export interface OpportunityResponse {
   metadata: Metadata;
   rule_version: string;
+  ranking_version?: string;
+  ranking_weights?: Record<string, number>;
   model_version: string;
   selection_revision: string;
   filters: OpportunityFilters;

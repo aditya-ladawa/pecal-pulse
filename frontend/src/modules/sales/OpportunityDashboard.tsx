@@ -699,6 +699,14 @@ export function OpportunityDashboard() {
                       <td>
                         <strong>{format(p.priority_score)}</strong>
                         <small>rule score / 100</small>
+                        {p.priority_components &&
+                          Object.keys(p.priority_components).length > 0 && (
+                            <InfoHint label={`priority breakdown for ${p.display_name}`}>
+                              {`Score parts (0–1, null means no evidence): ${Object.entries(p.priority_components)
+                                .map(([k, v]) => `${k.replace(/_/g, " ")} ${v == null ? "—" : (v as number).toFixed(2)}`)
+                                .join(" · ")}. Weights${data?.ranking_weights ? ` (${Object.entries(data.ranking_weights).map(([k, w]) => `${k.replace(/_/g, " ")} ${Math.round((w as number) * 100)}%`).join(", ")})` : ""} are business assumptions, not measured prices; expected value is priority points, never euros.`}
+                            </InfoHint>
+                          )}
                       </td>
                       <td>
                         {p.owner || "Unassigned"}

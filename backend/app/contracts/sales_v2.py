@@ -251,6 +251,7 @@ class PriorityComponents(StrictModel):
     quantity: float | None = Field(default=None, ge=0, le=1)
     activity_deviation: float | None = Field(default=None, ge=0, le=1)
     evidence: float | None = Field(default=None, ge=0, le=1)
+    expected_value: float | None = Field(default=None, ge=0, le=1)
 
 
 class AccountAction(StrictModel):

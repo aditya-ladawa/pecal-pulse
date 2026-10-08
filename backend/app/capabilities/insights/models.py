@@ -176,15 +176,17 @@ class AccountAction(StrictModel):
             "quantity": None,
             "activity_deviation": None,
             "evidence": None,
+            "expected_value": None,
         }
     )
-    ranking_version: str = "rank-v1"
+    ranking_version: str = "rank-v2"
     weights: dict[str, float] = Field(
         default_factory=lambda: {
-            "timing": 0.35,
-            "quantity": 0.30,
-            "activity_deviation": 0.20,
+            "timing": 0.30,
+            "quantity": 0.25,
+            "activity_deviation": 0.15,
             "evidence": 0.15,
+            "expected_value": 0.15,
         }
     )
     readiness: Literal["review_required", "eligible"] = "review_required"

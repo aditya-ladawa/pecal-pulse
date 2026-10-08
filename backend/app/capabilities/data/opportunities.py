@@ -8,6 +8,7 @@ from . import service, composition, workflow
 from ..analytics.context import for_snapshot
 from ..analytics import opportunities as features
 from ..insights import service as insights, compat
+from ..insights import actions as _insights_actions
 from ...contracts import sales_v2 as v2
 from ...contracts.opportunities import (OpportunityFilters, OpportunityPoint, ClusterSummary,
     CohortMetric, OpportunityResponse, ScenarioAssumptions)
@@ -151,7 +152,9 @@ def compose(snapshot_id: str, metadata: v2.ResponseMetadata, filters: Opportunit
             activity_probability=activity.probability if activity and activity.support.status == 'supported' else None,
             expected_calibrations=volume.expected_total if volume and volume.support.status == 'supported' and volume.metric == 'calibration_events' else None,
             forecast_start=volume.window_start if volume else None, forecast_end=volume.window_end if volume else None,
-            priority_score=action.priority_score if action else 0, reasons=[r.title for r in action.reasons[:3]] if action else [],
+            priority_score=action.priority_score if action else 0,
+            priority_components=action.components.model_dump() if action else {},
+            reasons=[r.title for r in action.reasons[:3]] if action else [],
             reason_types=reason_types, next_action=action.suggested_next_step if action else 'Gather more evidence before prioritizing.',
             readiness=action.readiness if action else 'insufficient_evidence', owner=state.account_owner,
             group_ids=row['groups']))
@@ -202,6 +205,7 @@ def compose(snapshot_id: str, metadata: v2.ResponseMetadata, filters: Opportunit
         [(p.customer_id, p.owner, p.due_recorded, p.due_inferred, p.activity_flagged) for p in selected],
         [f.model_dump() for f in tasks], scenario.model_dump() if scenario else None], sort_keys=True).encode()).hexdigest()[:16]
     return OpportunityResponse(metadata=metadata, rule_version=features.RULE_VERSION, model_version=signature,
+        ranking_version=_insights_actions.RANKING_VERSION, ranking_weights=dict(_insights_actions.DEFAULT_WEIGHTS),
         selection_revision=revision, filters=filters, selected_cluster=cluster_id, filter_options=options,
         matching_count=len(matched), selected_count=len(selected), unassigned_count=sum(p.cluster_id is None for p in matched),
         displayed_count=len(sampled), points=sampled, clusters=summaries, quality=model['quality'], metrics=metrics,
