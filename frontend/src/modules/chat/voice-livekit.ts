@@ -1,5 +1,11 @@
 import { ConnectionState, Room, RoomEvent, Track } from "livekit-client";
 
+// livekit-client measures responseTimeout in milliseconds (default 15000,
+// floored at 8000). A seconds-scale value here times out every RPC instantly.
+const RPC_TIMEOUT_MS = 15000;
+// end_turn waits on cloud transcription, so it carries a longer budget.
+const END_TURN_TIMEOUT_MS = 30000;
+
 /** One warm WebRTC session; audio is streamed while Space is held. */
 export class LiveKitVoice {
   readonly room = new Room({
@@ -43,12 +49,12 @@ export class LiveKitVoice {
     });
   }
 
-  private rpc(method: string, payload = "") {
+  private rpc(method: string, payload = "", responseTimeout = RPC_TIMEOUT_MS) {
     return this.room.localParticipant.performRpc({
       destinationIdentity: this.agentIdentity,
       method,
       payload,
-      responseTimeout: 15,
+      responseTimeout,
     });
   }
 
@@ -104,7 +110,9 @@ export class LiveKitVoice {
     this.recording = false;
     const epoch = this.epoch;
     await this.room.localParticipant.setMicrophoneEnabled(false);
-    const response = JSON.parse(await this.rpc("end_turn")) as {
+    const response = JSON.parse(
+      await this.rpc("end_turn", "", END_TURN_TIMEOUT_MS),
+    ) as {
       text: string;
       turn_id: string;
     };
