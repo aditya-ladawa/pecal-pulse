@@ -17,4 +17,6 @@ dependencies = [
     "uvicorn[standard]>=0.54.0",
     "langchain-openrouter>=0.2,<1",
     "ijson>=3.4,<4",
+    "livekit-agents~=1.8",
+    "livekit-api>=1.2.1",
 ]
