@@ -171,6 +171,18 @@ export function CustomerSignals({ detail: d }: { detail: Detail }) {
             <small>
               Ask whether timing, equipment or requirements have changed.
             </small>
+            {d.retention && (
+              <p>
+                Measured retention risk: <strong>{d.retention.tier}</strong>{" "}
+                — {(d.retention.return_probability * 100).toFixed(0)}% of
+                similarly silent accounts returned within{" "}
+                {d.retention.forward_window_months} months (
+                {d.retention.basis_episodes.toLocaleString()} past episodes).
+                <InfoHint label="measured retention risk">
+                  {`Based on past silence episodes after repeated activity, not a churn prediction. Accounts with ${d.retention.regular_history ? "regular" : "irregular"} history silent ${d.retention.silence_months} months returned at this rate. Repeated episodes for an account are not independent.`}
+                </InfoHint>
+              </p>
+            )}
           </div>
         )}
       {groups.size > 0 && (
