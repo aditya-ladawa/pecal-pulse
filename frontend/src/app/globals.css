@@ -2900,30 +2900,31 @@ details[open] > summary > .disclosure-chevron {
   font-size: 13px;
   font-weight: 400;
 }
-.info-hint summary {
+.info-hint-trigger {
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   color: #71856a;
   padding: 4px;
+  border: 0;
   border-radius: 50%;
-  list-style: none;
+  background: transparent;
 }
-.info-hint summary::-webkit-details-marker {
-  display: none;
+.info-hint-trigger:hover,
+.info-hint-trigger[aria-expanded="true"] {
+  background: #e5eddd;
 }
-.info-hint summary:focus-visible {
+.info-hint-trigger:focus-visible {
   outline: 2px solid #71856a;
   outline-offset: 2px;
 }
-.info-hint[open] summary {
-  background: #e5eddd;
-}
-.info-hint > div {
-  position: absolute;
-  z-index: 100;
-  top: 32px;
-  right: 0;
+.info-hint-popover {
+  position: fixed;
+  z-index: 2147483000;
   width: min(300px, 75vw);
+  max-height: min(70vh, 440px);
+  overflow: auto;
   padding: 14px 16px;
   border: 1px solid #dce5d4;
   border-radius: 14px;
@@ -2933,6 +2934,7 @@ details[open] > summary > .disclosure-chevron {
   line-height: 1.6;
   text-align: left;
   white-space: normal;
+  box-shadow: 0 8px 32px #243d2440;
 }
 .opportunity-map .card-heading > div:first-child,
 .customer-signals .card-heading {
@@ -3028,12 +3030,17 @@ details[open] > summary > .disclosure-chevron {
 .customers-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .horizontal-shell .customers-toolbar .page-heading { margin: 0; }
 .customers-toolbar h1 { margin: 0; font-size: 28px; }
+.customers-toolbar { min-height: 42px; justify-content: flex-end; }
 .customers-workspace .integrated-filters { margin: 0; gap: 14px; }
 .customers-workspace .integrated-filters input, .customers-workspace .integrated-filters select { padding: 9px 12px; }
 .customer-detail-header.card { padding: 15px 18px; margin-bottom: 12px; }
-.customer-detail-header .card-heading { margin-bottom: 10px; }
-.customer-detail-header p { margin: 4px 0 0; font-size: 12px; }
-.customer-detail-header h2 { margin: 0; font-size: 20px; line-height: 1.25; }
+.customer-header-layout { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 10px; }
+.customer-account-identity h2 { margin: 0; font-size: 20px; line-height: 1.25; }
+.customer-account-identity p { margin: 4px 0 0; font-size: 12px; }
+.customer-forecast-summary { display: grid; justify-items: end; gap: 2px; text-align: right; font-size: 11px; color: #718065; }
+.customer-forecast-summary > strong { display: flex; align-items: center; gap: 8px; color: #4c603f; font-size: 12px; }
+.customer-forecast-summary b { color: #30442a; font-size: 20px; }
+.customer-forecast-summary .info-hint { color: #536b48; }
 .equipment-layout { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 12px; align-items: start; }
 .equipment-layout > .card { margin: 0; padding: 18px; }
 .equipment-layout > .card:nth-child(1) { grid-column: 1; grid-row: 1 / span 2; }
@@ -3062,7 +3069,7 @@ details[open] > summary > .disclosure-chevron {
   .customer-detail-pane > .customer-detail-header { position: sticky; top: 0; z-index: 4; }
 }
 @media (max-width: 1200px) { .equipment-layout { grid-template-columns: 1fr; } .equipment-layout > .card:nth-child(n) { grid-column: auto; grid-row: auto; } }
-@media (max-width: 600px) { .customers-toolbar { align-items: flex-start; flex-direction: column; } .customer-tabs button { padding: 8px 10px; } }
+@media (max-width: 600px) { .customers-toolbar { align-items: flex-end; flex-direction: row; } .customer-header-layout { align-items: flex-start; flex-direction: column; } .customer-forecast-summary { justify-items: start; text-align: left; } .customer-tabs button { padding: 8px 10px; } }
 .customer-signals .integrated-table {
   max-height: none;
 }
