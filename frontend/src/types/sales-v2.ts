@@ -150,6 +150,15 @@ export interface Detail {
     wape: number | null;
     mae: number | null;
   } | null;
+  retention?: {
+    tier: "lower" | "moderate" | "higher";
+    return_probability: number;
+    silence_months: number;
+    forward_window_months: number;
+    regular_history: boolean;
+    basis_episodes: number;
+    reference_date?: string;
+  } | null;
   action: Action | null;
   peer_opportunities: {
     group_label: string;

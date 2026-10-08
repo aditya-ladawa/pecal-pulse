@@ -7,13 +7,17 @@ functional; the mock UI is untouched.
 """
 
 import os
+from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import TypeAdapter
 
 from ..capabilities import data
+from ..capabilities.analytics import retention as retention_mod
 from ..capabilities.analytics.context import for_snapshot as analytics_for_snapshot
+from ..capabilities.analytics.service import DEFAULT_ROOT as ANALYTICS_DEFAULT_ROOT
 from ..capabilities.sales.models import FollowupUpdate as FollowupStatusUpdate
 from ..contracts import sales_v2 as v2
 from ..realtime.publisher import publish
@@ -57,6 +61,46 @@ def _require_snapshot(snapshot_id: str) -> None:
 
 def _recency(snapshot_id: str, customer_id: str) -> int | None:
     return data.recency_months(snapshot_id, customer_id)
+
+
+@lru_cache(maxsize=8)
+def _retention_curve(snapshot_id: str) -> dict | None:
+    """Empirical return-curve sidecar; absent outside published snapshots."""
+    import json
+
+    root = Path(os.getenv("PECAL_ANALYTICS_ROOT", str(ANALYTICS_DEFAULT_ROOT))).resolve()
+    path = root / snapshot_id / "retention.json"
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if payload.get("snapshot_id") != snapshot_id or "forward_curve" not in payload:
+        return None
+    return payload
+
+
+def _retention_for_customer(snapshot_id: str, history) -> dict | None:
+    sidecar = _retention_curve(snapshot_id)
+    if not sidecar:
+        return None
+    active = sorted(
+        int(h.month[:4]) * 12 + int(h.month[5:])
+        for h in history
+        if h.calibration_events > 0
+    )
+    if not active:
+        return None
+    end = max(
+        int(h.month[:4]) * 12 + int(h.month[5:]) for h in history
+    )
+    result = retention_mod.retention_for(active, end, sidecar["forward_curve"])
+    if result is None:
+        return None
+    return {
+        **result,
+        "reference_date": sidecar.get("reference_date"),
+        "horizon_months": sidecar.get("horizon_months"),
+    }
 
 
 @router.get("/bootstrap")
@@ -229,6 +273,7 @@ def customer_detail(customer_id: str, snapshot_id: str = DEFAULT_SNAPSHOT, windo
         "requirements_display_limit": 500 if data.load_snapshot(snapshot_id).get("runtime_compact") else None,
         "prediction": prediction.model_dump() if prediction is not None else None,
         "forecast_quality": forecast_quality,
+        "retention": _retention_for_customer(snapshot_id, detail["history"]),
         "action": action.model_dump() if action is not None else None,
         "peer_opportunities": [
             p.model_dump() for p in data.peers_for_customer(snapshot_id, customer_id)
