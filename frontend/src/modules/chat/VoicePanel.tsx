@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useAui, useAuiState } from "@assistant-ui/react";
-import { Mic, Square } from "lucide-react";
+import { Square } from "lucide-react";
 import { ParticlesOrb } from "@/components/voiceorb/particles-orb";
 import type { OrbState } from "@/components/voiceorb/orb-state";
 import { useSalesStore } from "@/modules/sales/store";
@@ -266,9 +266,7 @@ export function VoicePanel() {
           state === "speaking" ||
           state === "connecting" ? (
             <Square size={17} />
-          ) : (
-            <Mic size={19} />
-          )}
+          ) : null}
         </span>
       </button>
       <span className="voice-status" role="status">
