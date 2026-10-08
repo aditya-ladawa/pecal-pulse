@@ -8,14 +8,20 @@ export function LandingPage() {
       <div className="landing-accent" aria-hidden="true" />
       <div className="landing-canvas" aria-hidden="true">
         <PredictiveArcSignal
-          background="#20384a"
+          background="#ffffff"
           baseColor="#274c67"
-          accentColor="#2c5d81"
+          accentColor="#2a5c80"
           highlight="#ff6f00"
-          density={140}
-          dotSize={90}
+          density={110}
+          dotSize={130}
           speed={45}
           hover={100}
+          signal={{
+            level: 50,
+            amplitude: 30,
+            thickness: 95,
+            wavelength: 72,
+          }}
         />
       </div>
       <div className="landing-content">

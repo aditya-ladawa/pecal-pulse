@@ -3136,7 +3136,7 @@ details[open] > summary > .disclosure-chevron {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: #20384a;
+  background: #ffffff;
 }
 .landing-accent {
   position: absolute;
@@ -3167,8 +3167,8 @@ details[open] > summary > .disclosure-chevron {
 .landing-title-block {
   margin: auto 0;
   text-align: center;
-  color: #ffffff;
-  text-shadow: 0 2px 24px #0b1a2450;
+  color: #20384a;
+  text-shadow: 0 1px 18px #ffffff8c;
 }
 .landing-title-block h1 {
   margin: 0;
@@ -3181,7 +3181,7 @@ details[open] > summary > .disclosure-chevron {
   margin: 18px auto 0;
   max-width: 620px;
   font-size: clamp(14px, 1.5vw, 19px);
-  color: #dce7f2;
+  color: #365e78;
 }
 .landing-action {
   display: flex;
