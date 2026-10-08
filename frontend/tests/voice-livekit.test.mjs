@@ -5,16 +5,17 @@ import vm from 'node:vm';
 import ts from 'typescript';
 const code = ts.transpileModule(readFileSync(new URL('../src/modules/chat/voice-livekit.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
 const flush=()=>new Promise(r=>setImmediate(r));
-function setup() {
- const calls=[], requests=[], timeouts=[]; let release;
+function setup(failExactOnce=false) {
+ const calls=[], requests=[], timeouts=[]; let release; let failExact=failExactOnce;
  class Room {
   state='disconnected';
   on(){return this;}
   startAudio=async()=>calls.push('unlock');
   connect=async()=>{calls.push('connect');this.state='connected';};
   disconnect=async()=>{calls.push('disconnect');this.state='disconnected';};
+  switchActiveDevice=async (kind,id)=>{calls.push(kind+':'+id);return true;};
   localParticipant={
-   setMicrophoneEnabled:async value=>calls.push(value?'mic-on':'mic-off'),
+   setMicrophoneEnabled:async (value,opts)=>{calls.push(value?'mic-on':'mic-off');if(value&&opts&&opts.deviceId&&failExact){failExact=false;throw new Error('NotFoundError');}},
    performRpc:async ({method,payload,responseTimeout})=>{calls.push(method);timeouts.push({method,responseTimeout});if(method==='speak')calls.push(JSON.parse(payload));return method==='end_turn'?JSON.stringify({text:'Due soon',turn_id:'turn1'}):'';},
   };
  }
@@ -48,6 +49,10 @@ test('rpc timeouts are millisecond-scale, never below the client 8000ms floor',a
  for(const {method,responseTimeout} of timeouts)assert.ok(responseTimeout>=8000,`${method} timeout ${responseTimeout} would expire instantly`);
  voice.close();
 });
+test('start falls back to the default microphone when the selected input is gone',async()=>{
+ const s=setup(true);assert.equal(await s.voice.start('gone'),true);
+ assert.equal(s.calls.filter(c=>c==='mic-on').length,2);s.voice.close();
+});
 test('lost agent session rejoins once and retries start_turn',async()=>{
  const s=setup();let failed=false;
  const orig=s.voice.room.localParticipant.performRpc;
@@ -59,6 +64,10 @@ test('lost agent session rejoins once and retries start_turn',async()=>{
  assert.ok(s.calls.includes('disconnect'));
  assert.equal(s.calls.filter(c=>c==='connect').length,2);
  s.voice.close();
+});
+test('speaker output routes through the room audio device switch',async()=>{
+ const {voice,calls}=setup();assert.equal(await voice.setOutput('earphones'),true);
+ assert.ok(calls.includes('audiooutput:earphones'));voice.close();
 });
 test('warm room is reused and cancellation interrupts the remote speech',async()=>{
  const {voice,calls}=setup();await voice.start('');await voice.finish();await voice.cancel();await voice.start('');

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAui, useAuiState } from "@assistant-ui/react";
 import { RoomAudioRenderer, RoomContext } from "@livekit/components-react";
 import { Square, Volume2 } from "lucide-react";
@@ -35,6 +35,12 @@ export function VoicePanel() {
   const [error, setError] = useState("");
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [deviceId, setDeviceId] = useState("");
+  const [outputs, setOutputs] = useState<MediaDeviceInfo[]>([]);
+  const [outputId, setOutputId] = useState("");
+  // Speaker routing needs setSinkId (Chromium); Safari/Firefox follow the OS default.
+  const outputSupported =
+    typeof HTMLAudioElement !== "undefined" &&
+    "setSinkId" in HTMLAudioElement.prototype;
   const [microphone, setMicrophone] = useState("");
   const [voice, setVoice] = useState<LiveKitVoice | null>(null);
   const [adapter, setAdapter] = useState<ReturnType<
@@ -46,6 +52,35 @@ export function VoicePanel() {
   const listening = useRef(false);
   const seen = useRef(response?.id);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const refreshDevices = useCallback(async () => {
+    try {
+      const all = await navigator.mediaDevices?.enumerateDevices();
+      if (!all) return { inputs: [], outputs: [] };
+      const inputs = all.filter((d) => d.kind === "audioinput");
+      const outs = all.filter((d) => d.kind === "audiooutput");
+      setDevices(inputs);
+      setOutputs(outs);
+      // A saved earphone may be unplugged; never keep a vanished device.
+      setDeviceId((id) =>
+        id && inputs.some((d) => d.deviceId === id) ? id : "",
+      );
+      setOutputId((id) =>
+        id && outs.some((d) => d.deviceId === id) ? id : "",
+      );
+      return { inputs, outputs: outs };
+    } catch {
+      return { inputs: [], outputs: [] };
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshDevices();
+    const update = () => void refreshDevices();
+    navigator.mediaDevices?.addEventListener("devicechange", update);
+    return () =>
+      navigator.mediaDevices?.removeEventListener("devicechange", update);
+  }, [refreshDevices]);
 
   useEffect(() => {
     mounted.current = true;
@@ -140,8 +175,13 @@ export function VoicePanel() {
     setSpeaking(false);
     const epoch = ++generation.current;
     try {
+      const { inputs } = await refreshDevices();
+      const mic =
+        deviceId && inputs.some((d) => d.deviceId === deviceId)
+          ? deviceId
+          : "";
       if (
-        !(await voice.start(deviceId)) ||
+        !(await voice.start(mic)) ||
         !mounted.current ||
         epoch !== generation.current
       )
@@ -151,11 +191,6 @@ export function VoicePanel() {
       adapter?.setTrack({ publication: voice.microphone() });
       setMicrophone(
         voice.microphone()?.track?.mediaStreamTrack.label || "Microphone",
-      );
-      setDevices(
-        (await navigator.mediaDevices.enumerateDevices()).filter(
-          (d) => d.kind === "audioinput",
-        ),
       );
       timer.current = setTimeout(() => void submit(), 44000);
     } catch (e) {
@@ -299,6 +334,7 @@ export function VoicePanel() {
           <select
             className="voice-input-select"
             aria-label="Microphone input"
+            title="Microphone for the next voice turn"
             value={deviceId}
             disabled={active}
             onChange={(e) => setDeviceId(e.target.value)}
@@ -315,6 +351,41 @@ export function VoicePanel() {
         ) : (
           <span className="voice-input-name">{microphone}</span>
         ))}
+      {outputSupported &&
+        (outputs.length > 1 ? (
+          <select
+            className="voice-input-select"
+            aria-label="Speaker output"
+            title="Where Pulse's speech plays"
+            value={outputId}
+            disabled={active}
+            onChange={(e) => {
+              const id = e.target.value;
+              setOutputId(id);
+              void voice
+                ?.setOutput(id)
+                .then((ok) => {
+                  if (!ok && mounted.current)
+                    setError(
+                      "This browser kept the system speaker. Use Chrome or Edge to route Pulse elsewhere.",
+                    );
+                })
+                .catch(() => {
+                  if (mounted.current)
+                    setError("Could not switch speaker output.");
+                });
+            }}
+          >
+            <option value="">Speakers · System default</option>
+            {outputs
+              .filter((d) => d.deviceId)
+              .map((d) => (
+                <option key={d.deviceId} value={d.deviceId}>
+                  {d.label || "Speaker"}
+                </option>
+              ))}
+          </select>
+        ) : null)}
       {error && (
         <p className="voice-error" role="alert">
           {error}
