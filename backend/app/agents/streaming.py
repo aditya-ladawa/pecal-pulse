@@ -36,7 +36,8 @@ class PartAccumulator:
         self.indices[(run_id, "tool")] = index
         part = {"type":"tool-call", "toolCallId":run_id, "toolName":name,
                 "args": args if isinstance(args, dict) else {},
-                "argsText": json.dumps(args, ensure_ascii=False)}
+                "argsText": json.dumps(args, ensure_ascii=False),
+                "status": {"type": "running"}}
         self.parts.append(part)
         return {"type":"part", "index":index, "part":dict(part)}
 
@@ -55,5 +56,5 @@ class PartAccumulator:
             except json.JSONDecodeError:
                 pass
         part = self.parts[index]
-        part.update(result=value, isError=error)
+        part.update(result=value, isError=error, status={"type": "complete"})
         return {"type":"part", "index":index, "part":dict(part)}

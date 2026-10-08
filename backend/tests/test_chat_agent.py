@@ -175,3 +175,14 @@ class ReasoningPartTests(unittest.TestCase):
         parts = PartAccumulator()
         parts.model_chunk("run", AIMessageChunk(content="Hello"))
         self.assertEqual([p["type"] for p in parts.parts], ["text"])
+
+class ToolStatusTests(unittest.TestCase):
+    def test_tool_part_is_running_until_its_result_arrives(self):
+        from backend.app.agents.streaming import PartAccumulator
+        parts = PartAccumulator()
+        started = parts.tool_start("run1", "list_customers", {"limit": 3})
+        self.assertEqual(started["part"]["status"], {"type": "running"})
+        ended = parts.tool_end("run1", {"customers": []})
+        self.assertEqual(ended["part"]["status"], {"type": "complete"})
+        self.assertEqual(ended["index"], started["index"])
+        self.assertIn("customers", ended["part"]["result"])
