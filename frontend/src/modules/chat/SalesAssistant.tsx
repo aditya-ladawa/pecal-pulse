@@ -206,15 +206,6 @@ export function SalesAssistantProvider({ children }: { children: ReactNode }) {
                   .join("\n"),
               };
             });
-          } else if (event.type === "speech") {
-            if (voiceTurn)
-              useSalesStore.getState().set({
-                voiceResponse: {
-                  id: event.id,
-                  text: event.text,
-                  kind: "progress",
-                },
-              });
           } else if (event.type === "workspace") {
             if (!applied.has(event.event.id)) {
               applied.add(event.event.id);

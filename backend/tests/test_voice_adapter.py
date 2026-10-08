@@ -1,73 +1,128 @@
-import io
+import json
 import unittest
-import wave
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
-import httpx
+from uuid import uuid4
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from pydantic import SecretStr
 from backend.app.api import voice
-
-def wav(seconds=1):
-    buf = io.BytesIO()
-    with wave.open(buf, "wb") as output:
-        output.setnchannels(1); output.setsampwidth(2); output.setframerate(24000)
-        output.writeframes(b"\0\0" * int(24000 * seconds))
-    return buf.getvalue()
+from backend.app.agents.voice_livekit import VoiceManager, spoken_summary
 
 class VoiceAdapterTests(unittest.TestCase):
     def setUp(self):
-        app = FastAPI(); app.include_router(voice.router)
-        self.client = TestClient(app)
+        self.app = FastAPI(); self.app.include_router(voice.router)
+        self.app.state.voice = SimpleNamespace(connect=AsyncMock(), stop=AsyncMock())
+        self.client = TestClient(self.app)
 
-    def test_transcription_joins_segments_without_running_agent(self):
-        upstream = AsyncMock(return_value=httpx.Response(200, text='{"type":"text","text":"Show customers"}\n{"type":"end_text"}\n{"type":"text","text":"due soon"}\n'))
-        with patch.object(voice, "upstream", upstream):
-            result = self.client.post("/api/voice/transcribe", content=wav())
-        self.assertEqual(result.json(), {"text":"Show customers due soon"})
-        self.assertEqual(upstream.call_args.args[0], "asr")
-
-    def test_invalid_and_overlong_recordings_never_reach_provider(self):
-        with patch.object(voice, "upstream", AsyncMock()) as upstream:
-            for audio in (b"not wav", wav(46)):
-                self.assertEqual(self.client.post("/api/voice/transcribe", content=audio).status_code, 400)
-            self.assertEqual(self.client.post("/api/voice/transcribe", content=b"x" * (voice.MAX_AUDIO+1)).status_code, 413)
-            upstream.assert_not_called()
-
-    def test_silence_does_not_become_a_user_command(self):
-        with patch.object(voice, "upstream", AsyncMock(return_value=httpx.Response(200, text='{"type":"end_of_stream"}'))):
-            self.assertEqual(self.client.post("/api/voice/transcribe", content=wav()).status_code, 422)
-
-    def test_partial_transcript_is_not_executed_on_provider_error(self):
-        text='{"type":"text","text":"Assign all accounts"}\n{"type":"error","message":"private provider detail"}'
-        with patch.object(voice, "upstream", AsyncMock(return_value=httpx.Response(200, text=text))):
-            result = self.client.post("/api/voice/transcribe", content=wav())
-        self.assertEqual(result.status_code, 502)
-        self.assertNotIn("private provider detail", result.text)
-
-    def test_speech_only_reads_summary_not_long_details(self):
-        upstream = AsyncMock(return_value=httpx.Response(200, content=wav()))
-        with patch.object(voice, "upstream", upstream):
-            response = self.client.post("/api/voice/speak", json={"text":"**Found 12 accounts.**\n\n- Extra detail with [source](https://example.com)."})
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.headers["content-type"], "audio/wav")
-        self.assertEqual(upstream.call_args.kwargs["json"]["text"], "Found 12 accounts.")
-        self.assertLessEqual(len(voice.spoken_summary("word " * 500)), 600)
-
-    def test_missing_key_is_visible_without_exposing_credentials(self):
-        with patch.object(voice, "Settings") as settings:
-            settings.return_value.gradium_api_key = SecretStr("")
+    def test_missing_configuration_never_starts_room(self):
+        with patch.object(voice, "configured", return_value=False):
             self.assertFalse(self.client.get("/api/voice/status").json()["configured"])
-            response = self.client.post("/api/voice/speak", json={"text":"Hello"})
+            response = self.client.post("/api/voice/connect", json={"session_id":str(uuid4())})
         self.assertEqual(response.status_code, 503)
+        self.app.state.voice.connect.assert_not_called()
 
-    def test_streaming_wav_header_is_finalized_for_browser_decoding(self):
-        audio = bytearray(wav())
-        audio[4:8] = b"\xff" * 4
-        audio[40:44] = b"\xff" * 4
-        result = voice.finalized_wav(bytes(audio))
-        voice.validate_audio(result)
-        with wave.open(io.BytesIO(result), "rb") as stream:
-            self.assertEqual(stream.getnframes(), 24000)
+    def test_connect_returns_only_scoped_participant_token(self):
+        connection = SimpleNamespace(settings=SimpleNamespace(livekit_url="wss://test.livekit.cloud"),
+            identity="browser-random", agent_identity="pulse-voice", token=lambda identity: "scoped-token")
+        self.app.state.voice.connect.return_value = connection
+        with patch.object(voice, "configured", return_value=True):
+            response = self.client.post("/api/voice/connect", json={"session_id":str(uuid4())})
+        self.assertEqual(response.json(), {"server_url":"wss://test.livekit.cloud", "token":"scoped-token", "agent_identity":"pulse-voice"})
+        self.assertNotIn("secret", response.text)
 
-if __name__ == "__main__": unittest.main()
+    def test_invalid_session_does_not_reach_provider(self):
+        self.assertEqual(self.client.post("/api/voice/connect", json={"session_id":"anything"}).status_code, 422)
+        self.app.state.voice.connect.assert_not_called()
+
+    def test_provider_error_does_not_leak_details(self):
+        self.app.state.voice.connect.side_effect = RuntimeError("private provider credentials")
+        with patch.object(voice, "configured", return_value=True):
+            response = self.client.post("/api/voice/connect", json={"session_id":str(uuid4())})
+        self.assertEqual(response.status_code, 502)
+        self.assertNotIn("private provider", response.text)
+
+    def test_old_buffered_gradium_routes_are_gone(self):
+        self.assertEqual(self.client.post("/api/voice/transcribe", content=b"audio").status_code, 404)
+        self.assertEqual(self.client.post("/api/voice/speak", json={"text":"hello"}).status_code, 404)
+
+    def test_summary_leaves_details_in_chat(self):
+        self.assertEqual(spoken_summary("**Found 12 accounts.**\n\n- Extra detail"), "Found 12 accounts.")
+        self.assertLessEqual(len(spoken_summary("word " * 500)), 600)
+
+class VoiceLifecycleTests(unittest.IsolatedAsyncioTestCase):
+    async def test_idempotent_connect_and_stop(self):
+        with patch("backend.app.agents.voice_livekit.VoiceConnection") as factory:
+            factory.return_value.start = AsyncMock(); factory.return_value.close = AsyncMock()
+            manager = VoiceManager()
+            first = await manager.connect("same")
+            self.assertIs(await manager.connect("same"), first)
+            factory.return_value.start.assert_awaited_once()
+            await manager.stop("same"); await manager.stop("same")
+            factory.return_value.close.assert_awaited_once()
+
+    async def test_failed_start_cleans_up_and_can_retry(self):
+        with patch("backend.app.agents.voice_livekit.VoiceConnection") as factory:
+            factory.return_value.start = AsyncMock(side_effect=RuntimeError("failed"))
+            factory.return_value.close = AsyncMock()
+            manager = VoiceManager()
+            with self.assertRaises(RuntimeError): await manager.connect("same")
+            self.assertFalse(manager.connections)
+            factory.return_value.close.assert_awaited_once()
+            factory.return_value.start.side_effect = None
+            await manager.connect("same")
+            await manager.close()
+
+class VoiceTurnTests(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        from unittest.mock import MagicMock
+        from backend.app.agents.voice_livekit import VoiceConnection
+        from backend.app.agents.settings import Settings
+        self.handlers = {}
+        self.session = MagicMock()
+        self.session.start = AsyncMock(); self.session.aclose = AsyncMock()
+        self.session.commit_user_turn = AsyncMock(return_value="Show accounts due soon")
+        room = MagicMock(); room.connect = AsyncMock(); room.disconnect = AsyncMock()
+        def register(name):
+            def decorator(handler): self.handlers[name] = handler; return handler
+            return decorator
+        room.local_participant.register_rpc_method.side_effect = register
+        self.patches = [patch("backend.app.agents.voice_livekit.rtc.Room", return_value=room),
+                        patch("backend.app.agents.voice_livekit.AgentSession",return_value=self.session),
+                        patch("backend.app.agents.voice_livekit.inference.STT"),
+                        patch("backend.app.agents.voice_livekit.inference.TTS")]
+        for p in self.patches: p.start()
+        self.connection = VoiceConnection(Settings(livekit_api_key="test",livekit_api_secret="test-secret-for-local-unit-tests-only",livekit_url="wss://test"), str(uuid4()))
+        await self.connection.start()
+        self.data = lambda payload="": SimpleNamespace(caller_identity=self.connection.identity,payload=payload)
+
+    async def asyncTearDown(self):
+        await self.connection.close()
+        for p in reversed(self.patches): p.stop()
+
+    async def test_only_one_ack_and_one_final_duplicate_suppression(self):
+        await self.handlers["start_turn"](self.data())
+        result=json.loads(await self.handlers["end_turn"](self.data()))
+        self.session.commit_user_turn.assert_awaited_once_with(skip_reply=True,transcript_timeout=4.0,stt_flush_duration=0.5)
+        payload=json.dumps({"turn_id":result["turn_id"],"text":"Found 12 accounts.\n\nDetailed chart explanation."})
+        await self.handlers["speak"](self.data(payload)); await self.handlers["speak"](self.data(payload))
+        self.assertEqual([call.args[0] for call in self.session.say.call_args_list], ["I'll check that for you.","Found 12 accounts."])
+
+    async def test_empty_transcript_cannot_trigger_ack_or_agent_command(self):
+        from livekit import rtc
+        self.session.commit_user_turn.return_value=" "
+        await self.handlers["start_turn"](self.data())
+        with self.assertRaises(rtc.RpcError): await self.handlers["end_turn"](self.data())
+        self.session.say.assert_not_called()
+
+    async def test_another_participant_cannot_control_voice(self):
+        from livekit import rtc
+        with self.assertRaises(rtc.RpcError): await self.handlers["start_turn"](SimpleNamespace(caller_identity="intruder"))
+        self.session.clear_user_turn.assert_not_called()
+
+    async def test_stale_final_cannot_speak_during_a_new_recording(self):
+        await self.handlers["start_turn"](self.data())
+        old=self.connection.turn_id
+        await self.handlers["interrupt"](self.data())
+        await self.handlers["start_turn"](self.data())
+        await self.handlers["speak"](self.data(json.dumps({"text":"Old reply", "turn_id":old})))
+        self.session.say.assert_not_called()
