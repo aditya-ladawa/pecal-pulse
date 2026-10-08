@@ -13,6 +13,7 @@ import {
 } from "./api";
 import { openCustomer, dispatchEvent } from "@/core/events/router";
 import { Chart, ArtifactChart } from "@/modules/artifacts/Chart";
+import { InstrumentTiming } from "./InstrumentTiming";
 import { Card, InfoHint } from "@/components/ui/Primitives";
 import type { Bootstrap, Detail } from "@/types/sales-v2";
 import type { EventEnvelope, PageSnapshot } from "@/types/sales";
@@ -258,12 +259,11 @@ export function IntegratedWorkspace() {
     );
   if (pathname === "/customers")
     return (
-      <>
-        <Heading
-          title="Customers"
-          text="Explore actual history, model support and evidence before taking action."
-        />
-        <CustomerViews />
+      <div className="customers-workspace">
+        <div className="customers-toolbar">
+          <Heading title="Customers" text="" />
+          <CustomerViews />
+        </div>
         <div className="filters integrated-filters">
           <label>
             Industry
@@ -335,7 +335,7 @@ export function IntegratedWorkspace() {
         </div>
         {error && <p role="alert">{error}</p>}
         <div className="integrated-customer-grid">
-          <Card>
+          <Card className="accounts-pane">
             <h2>Your accounts · {count(s.v2List?.total)}</h2>
             {s.v2Detail &&
               s.v2List &&
@@ -348,20 +348,31 @@ export function IntegratedWorkspace() {
                 </p>
               )}
             {pending && <p>Loading accounts…</p>}
-            {s.v2List?.items.map((item) => (
-              <button
-                key={item.profile.customer_id}
-                className={`integrated-account ${item.profile.customer_id === s.selectedId ? "selected" : ""}`}
-                onClick={() => s.set({ selectedId: item.profile.customer_id })}
-              >
-                <strong>{item.profile.display_name}</strong>
-                <span>{item.profile.industry_label || "Unknown industry"}</span>
-                <small>
-                  {item.primary_action?.primary_type || "No supported action"} ·{" "}
-                  {item.primary_action?.readiness || "Review history"}
-                </small>
-              </button>
-            ))}
+            <div className="accounts-scroll">
+              {s.v2List?.items.map((item) => (
+                <button
+                  key={item.profile.customer_id}
+                  className={`integrated-account ${item.profile.customer_id === s.selectedId ? "selected" : ""}`}
+                  onClick={() =>
+                    s.set({ selectedId: item.profile.customer_id })
+                  }
+                >
+                  <strong>{item.profile.display_name}</strong>
+                  <span>
+                    {item.profile.industry_label || "Unknown industry"}
+                  </span>
+                  <small>
+                    {item.primary_action?.primary_type === "upcoming"
+                      ? "Calibration need"
+                      : item.primary_action?.primary_type === "inactivity"
+                        ? "Check reduced activity"
+                        : item.primary_action?.primary_type === "discovery"
+                          ? "Explore a service"
+                          : "Review history"}
+                  </small>
+                </button>
+              ))}
+            </div>
             {!pending && s.v2List?.total === 0 && (
               <p>No accounts match these filters.</p>
             )}
@@ -385,7 +396,7 @@ export function IntegratedWorkspace() {
               </button>
             </div>
           </Card>
-          <div>
+          <div className="customer-detail-pane">
             {s.v2Detail ? (
               <CustomerEvidence
                 detail={s.v2Detail}
@@ -400,7 +411,7 @@ export function IntegratedWorkspace() {
             )}
           </div>
         </div>
-      </>
+      </div>
     );
   if (pathname !== "/insights") return <OpportunityDashboard />;
   const sectors = boot.sectors;
@@ -622,6 +633,12 @@ export function CustomerEvidence({
   const [saving, setSaving] = useState(false);
   const activityView = s.customerActivityView;
   const [showAllReasons, setShowAllReasons] = useState(false);
+  const [portfolioPage, setPortfolioPage] = useState(0);
+  useEffect(() => setPortfolioPage(0), [d.profile.customer_id]);
+  const visiblePortfolioPage = Math.min(
+    portfolioPage,
+    Math.max(0, Math.ceil(d.portfolio.length / 5) - 1),
+  );
   useEffect(() => setShowAllReasons(false), [d.profile.customer_id]);
   const prediction = d.prediction;
   const volume = prediction?.calibration_volume;
@@ -663,7 +680,7 @@ export function CustomerEvidence({
   };
   return (
     <>
-      <Card>
+      <Card className="customer-detail-header">
         <div className="card-heading">
           <div>
             <h2>{d.profile.display_name}</h2>
@@ -880,7 +897,7 @@ export function CustomerEvidence({
           )}
         </>
       ) : s.customerTab === "portfolio" ? (
-        <>
+        <div className="equipment-layout">
           <Card>
             <div className="card-heading">
               <h2>Calibration work with us</h2>
@@ -898,76 +915,51 @@ export function CustomerEvidence({
                   </tr>
                 </thead>
                 <tbody>
-                  {d.portfolio.map((p) => (
-                    <tr key={p.group_id}>
-                      <td>{p.group_label}</td>
-                      <td>{count(p.calibration_events)}</td>
-                    </tr>
-                  ))}
+                  {d.portfolio
+                    .slice(
+                      visiblePortfolioPage * 5,
+                      visiblePortfolioPage * 5 + 5,
+                    )
+                    .map((p) => (
+                      <tr key={p.group_id}>
+                        <td>{p.group_label}</td>
+                        <td>{count(p.calibration_events)}</td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
             </div>
+            {d.portfolio.length > 5 && (
+              <div className="integrated-pagination">
+                <button
+                  className="button"
+                  disabled={visiblePortfolioPage === 0}
+                  onClick={() => setPortfolioPage(visiblePortfolioPage - 1)}
+                >
+                  Previous categories
+                </button>
+                <small>
+                  {visiblePortfolioPage + 1} /{" "}
+                  {Math.ceil(d.portfolio.length / 5)}
+                </small>
+                <button
+                  className="button"
+                  disabled={
+                    (visiblePortfolioPage + 1) * 5 >= d.portfolio.length
+                  }
+                  onClick={() => setPortfolioPage(visiblePortfolioPage + 1)}
+                >
+                  Next categories
+                </button>
+              </div>
+            )}
           </Card>
           <Card>
             <h2>Services to ask about</h2>
             <PeerQuestions detail={d} />
           </Card>
-          <Card>
-            <details>
-              <summary>View instrument date records</summary>
-              <small>
-                Showing up to 50 of {d.requirements.length} loaded records. Full
-                tier counts cover all source requirements; evidence is loaded
-                with a bounded record limit.
-              </small>
-              <p>
-                {Object.values(d.requirement_tier_counts || {}).reduce(
-                  (a, b) => a + b,
-                  0,
-                ) || d.requirements.length}{" "}
-                instrument records ·{" "}
-                {d.requirement_tier_counts?.unknown ??
-                  d.requirements.filter((r) => r.kind === "unknown")
-                    .length}{" "}
-                with unknown dates ·{" "}
-                {
-                  d.requirements.filter((r) => r.eligibility === "excluded")
-                    .length
-                }{" "}
-                excluded in the loaded evidence.
-              </p>
-              <div className="integrated-table">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Evidence</th>
-                      <th>Window</th>
-                      <th>Eligibility</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {d.requirements.slice(0, 50).map((r) => (
-                      <tr key={r.id}>
-                        <td>{r.kind.replaceAll("_", " ")}</td>
-                        <td>
-                          {r.window_start || "Unknown"} –{" "}
-                          {r.window_end || "Unknown"}
-                        </td>
-                        <td>{r.eligibility.replaceAll("_", " ")}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {d.requirements.length > 50 && (
-                <small>
-                  Showing first 50 loaded records; source tier counts cover the
-                  full account.
-                </small>
-              )}
-            </details>
-          </Card>
-        </>
+          <InstrumentTiming detail={d} />
+        </div>
       ) : (
         <>
           <Card>
