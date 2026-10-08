@@ -190,7 +190,7 @@ async def agent_lifespan(settings=None, model=None):
         api_key=settings.openrouter_api_key.get_secret_value() or "missing",
         base_url="https://openrouter.ai/api/v1", model=settings.llm_model,
         timeout=45000, max_retries=0, temperature=0, streaming=True,
-        reasoning={"enabled": True, "exclude": False}, model_kwargs={"parallel_tool_calls": False},
+        reasoning={"effort": settings.resoning_lvl, "exclude": False}, model_kwargs={"parallel_tool_calls": False},
     )
     async with AsyncSqliteSaver.from_conn_string(str(settings.db_path)) as saver:
         from ..capabilities.registry import get_agent_tools

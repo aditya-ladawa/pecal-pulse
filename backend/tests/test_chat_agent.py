@@ -1,6 +1,8 @@
 import asyncio
 import tempfile
 import unittest
+import os
+from unittest.mock import patch
 from pathlib import Path
 from uuid import uuid4
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
@@ -38,6 +40,27 @@ class ChatAgentTests(unittest.IsolatedAsyncioTestCase):
 
     async def asyncTearDown(self):
         self.temp.cleanup()
+
+    async def test_dotenv_model_and_reasoning_reach_openrouter_request(self):
+        from langchain_openrouter import ChatOpenRouter
+        dotenv = Path(self.temp.name) / ".env"
+        dotenv.write_text("LLM_MODEL=test/configured-model\nRESONING_LVL='low'\n")
+        with patch.dict(os.environ):
+            os.environ.pop("LLM_MODEL", None)
+            os.environ.pop("RESONING_LVL", None)
+            settings = Settings(_env_file=dotenv, openrouter_api_key="test",
+                                checkpoint_path=str(Path(self.temp.name) / "configured.sqlite3"))
+        adapters = []
+        def adapter(**kwargs):
+            result = ChatOpenRouter(**kwargs)
+            adapters.append(result)
+            return result
+        with patch("backend.app.agents.react_agent.ChatOpenRouter", side_effect=adapter):
+            async with agent_lifespan(settings):
+                params = adapters[0]._default_params
+                self.assertEqual(params["model"], "test/configured-model")
+                self.assertEqual(params["reasoning"], {"effort": "low", "exclude": False})
+                self.assertTrue(params["stream"])
 
     async def test_checkpoint_and_display_history_survive_restart_without_replaying_events(self):
         thread = uuid4()
