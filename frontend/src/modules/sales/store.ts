@@ -54,6 +54,7 @@ export const defaultFilters: CustomerFilters = {
   industry: "all",
   segment: "all",
   action: "all",
+  retention: "all",
   query: "",
 };
 export const useSalesStore = create<SalesState>((set) => ({

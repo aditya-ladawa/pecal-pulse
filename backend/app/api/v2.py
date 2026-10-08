@@ -95,6 +95,35 @@ def _volume_reliability(snapshot_id: str) -> dict | None:
     return payload
 
 
+def _retention_tiers(snapshot_id: str, customer_ids: list) -> dict[str, str]:
+    """Measured retention tier per account; missing when history is thin or
+    the sidecar is unpublished (those accounts never match a tier filter)."""
+    from ..capabilities.data.service import load_snapshot
+
+    sidecar = _retention_curve(snapshot_id)
+    if not sidecar:
+        return {}
+    snapshot = load_snapshot(snapshot_id)
+    complete = snapshot["manifest"].complete_through_month
+    end = int(complete[:4]) * 12 + int(complete[5:])
+    wanted = set(customer_ids)
+    active: dict[str, list[int]] = {}
+    for row in snapshot["history"]:
+        if row.customer_id not in wanted or row.calibration_events <= 0:
+            continue
+        active.setdefault(row.customer_id, []).append(
+            int(row.month[:4]) * 12 + int(row.month[5:])
+        )
+    tiers = {}
+    for customer_id, months in active.items():
+        result = retention_mod.retention_for(
+            sorted(months), end, sidecar["forward_curve"]
+        )
+        if result is not None:
+            tiers[customer_id] = result["tier"]
+    return tiers
+
+
 def _retention_for_customer(snapshot_id: str, history) -> dict | None:
     sidecar = _retention_curve(snapshot_id)
     if not sidecar:
@@ -175,6 +204,7 @@ def list_customers(
     industry_id: str | None = None,
     segment_id: str | None = None,
     action: Literal["upcoming", "inactivity", "discovery"] | None = None,
+    retention: Literal["lower", "moderate", "higher"] | None = None,
     query: str | None = None,
     sort: Literal["priority", "name"] = "name",
     limit: int = 20,
@@ -214,6 +244,9 @@ def list_customers(
             for p in profiles
             if needle in (p.display_name + " " + p.customer_id).lower()
         ]
+    if retention is not None:
+        tiers = _retention_tiers(snapshot_id, [p.customer_id for p in profiles])
+        profiles = [p for p in profiles if tiers.get(p.customer_id) == retention]
     if sort == "priority":
         profiles = sorted(
             profiles,
