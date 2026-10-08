@@ -261,7 +261,6 @@ export function IntegratedWorkspace() {
     return (
       <div className="customers-workspace">
         <div className="customers-toolbar">
-          <Heading title="Customers" text="" />
           <CustomerViews />
         </div>
         <div className="filters integrated-filters">
@@ -681,11 +680,31 @@ export function CustomerEvidence({
   return (
     <>
       <Card className="customer-detail-header">
-        <div className="card-heading">
-          <div>
+        <div className="customer-header-layout">
+          <div className="customer-account-identity">
             <h2>{d.profile.display_name}</h2>
             <p>{d.profile.industry_label || "Sector not supplied"}</p>
           </div>
+          {s.customerTab === "activity" && (
+            <div className="customer-forecast-summary">
+              <span>Outlook: {period}</span>
+              <span>History through {d.metadata.reference_date}</span>
+              <strong>
+                Chance of calibration activity{" "}
+                <b>
+                  {prediction?.activity.probability == null
+                    ? "Unavailable"
+                    : `${(prediction.activity.probability * 100).toFixed(1)}%`}
+                </b>
+                <InfoHint label="chance of calibration activity">
+                  {prediction?.activity.probability == null
+                    ? prediction?.activity.support.reason ||
+                      "There is not enough history to estimate calibration activity."
+                    : "Chance of at least one calibration in the three-month outlook. This is not a probability of an order, churn or sales conversion."}
+                </InfoHint>
+              </strong>
+            </div>
+          )}
         </div>
         <div
           className="customer-tabs"
@@ -710,26 +729,6 @@ export function CustomerEvidence({
       </Card>
       {s.customerTab === "activity" ? (
         <>
-          <small className="forecast-period">
-            Outlook: {period} · based on history through{" "}
-            {d.metadata.reference_date}
-          </small>
-          <div className="metrics integrated-detail-metrics">
-            <Metric
-              label="Chance of calibration activity"
-              suffix="%"
-              value={
-                prediction?.activity.probability == null
-                  ? null
-                  : prediction.activity.probability * 100
-              }
-              caption={
-                prediction?.activity.probability == null
-                  ? prediction?.activity.support.reason || "Unsupported history"
-                  : "Chance of at least one calibration in the forecast period; not a sale or churn prediction."
-              }
-            />
-          </div>
           <Card>
             <div className="card-heading">
               <h2>Customer activity</h2>
@@ -804,12 +803,18 @@ export function CustomerEvidence({
                     markArea: futureMonths.length
                       ? {
                           silent: true,
-                          itemStyle: { color: "rgba(160, 146, 193, 0.20)" },
+                          itemStyle: {
+                            color: "rgba(160, 146, 193, 0.28)",
+                            borderColor: "rgba(112, 91, 151, 0.42)",
+                            borderWidth: 1,
+                          },
                           label: {
                             show: true,
-                            color: "#675580",
-                            fontSize: 12,
-                            formatter: `3-month forecast\n${forecastSupported ? `≈ ${Math.round(volume!.expected_total!)} calibrations` : "Insufficient history"}`,
+                            position: "insideTop",
+                            color: "#49365f",
+                            fontSize: 13,
+                            fontWeight: 700,
+                            formatter: `3-month total\n${forecastSupported ? `≈ ${Math.round(volume!.expected_total!)} calibrations` : "Insufficient history"}`,
                           },
                           data: [
                             [
