@@ -4,6 +4,30 @@ import type { EventEnvelope, UiCommand } from "@/types/sales";
 /** The single UI update boundary, used by human controls and agent receipts. */
 export function dispatchEvent(event: EventEnvelope) {
   const s = useSalesStore.getState();
+  if (event.source.type === "agent") {
+    const feedback =
+      event.type === "opportunities.filters.set" ||
+      event.type === "customers.filters.set"
+        ? { target: "filters" as const, label: "Pulse updated the filters" }
+        : event.type === "customers.select" ||
+            (event.type === "ui.control.set" &&
+              event.payload.control === "dashboard.preview" &&
+              event.payload.value)
+          ? { target: "customer" as const, label: "Pulse opened a customer" }
+          : event.type === "opportunities.cluster.select" ||
+              event.type === "ui.control.set"
+            ? { target: "controls" as const, label: "Pulse updated the view" }
+            : event.type === "accounts.assigned" ||
+                event.type === "customer.workflow.updated" ||
+                event.type === "followup.created" ||
+                event.type === "followup.updated"
+              ? {
+                  target: "workflow" as const,
+                  label: "Pulse saved the next step",
+                }
+              : null;
+    if (feedback) s.set({ agentFeedback: { id: event.id, ...feedback } });
+  }
   switch (event.type) {
     case "opportunities.filters.set":
       s.set({
@@ -58,6 +82,17 @@ export function dispatchEvent(event: EventEnvelope) {
         });
       break;
     case "ui.navigate":
+      if (
+        event.source.type === "agent" &&
+        window.location.pathname !== `/${event.payload.page}`
+      )
+        s.set({
+          agentFeedback: {
+            id: event.id,
+            target: "navigation",
+            label: `Pulse opened ${event.payload.page === "follow-ups" ? "Follow-ups" : event.payload.page[0].toUpperCase() + event.payload.page.slice(1)}`,
+          },
+        });
       s.set({ requestedPage: event.payload.page });
       break;
     case "customers.filters.set":

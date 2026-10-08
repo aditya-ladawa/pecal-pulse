@@ -2603,6 +2603,25 @@ details[open] > summary > .disclosure-chevron {
   border-bottom: 1px solid var(--line);
   background: #f0f4e9;
 }
+.agent-action-feedback {
+  position: fixed;
+  top: 78px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 75;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  max-width: calc(100vw - 32px);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #f0f4e9;
+  color: var(--ink);
+  box-shadow: 0 5px 18px #20384a15;
+  font-size: 13px;
+  pointer-events: none;
+}
 .workspace-topnav .brand {
   padding: 0;
 }
@@ -2868,12 +2887,20 @@ details[open] > summary > .disclosure-chevron {
   justify-content: flex-end;
 }
 .opportunity-drawer {
+  animation: customer-preview-enter 220ms ease-out;
   width: min(780px, 94vw);
   height: 100%;
   overflow: auto;
   background: #f7f8f2;
   padding: 22px;
   box-shadow: -10px 0 60px #283b2526;
+}
+@keyframes customer-preview-enter {
+  from { opacity: 0; transform: translateX(18px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .opportunity-drawer { animation: none; }
 }
 .opportunity-drawer-header {
   position: sticky;

@@ -18,6 +18,11 @@ import {
   type CommercialScenario,
 } from "@/types/opportunities";
 interface SalesState {
+  agentFeedback: {
+    id: string;
+    target: "navigation" | "filters" | "customer" | "controls" | "workflow";
+    label: string;
+  } | null;
   customerOffset: number;
   dashboardOffset: number;
   customerListLoading: boolean;
@@ -63,6 +68,7 @@ export const defaultFilters: CustomerFilters = {
   query: "",
 };
 export const useSalesStore = create<SalesState>((set) => ({
+  agentFeedback: null,
   customerOffset: 0,
   dashboardOffset: 0,
   customerListLoading: false,
