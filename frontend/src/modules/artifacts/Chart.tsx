@@ -4,6 +4,21 @@ import * as echarts from "echarts";
 import type { EChartsOption } from "echarts";
 import type { ChartArtifact } from "@/types/sales";
 const colors = ["#72966a", "#edb482", "#a9bad8", "#c6b5d7", "#a8c6b6"];
+/**
+ * Axis tick labels: at most two decimals with trailing zeros trimmed, so
+ * ticks read 12.5 / 12.34 / 12 instead of 12.5000000001 or 12.00.
+ */
+export function axisNumber(value: number): string {
+  if (!Number.isFinite(value)) return "";
+  return Number(value.toFixed(2)).toLocaleString(undefined, {
+    maximumFractionDigits: 2,
+  });
+}
+/** Fraction 0–1 as a percent label with at most two decimals: 0.48 → 48%. */
+export function axisPercent(value: number): string {
+  if (!Number.isFinite(value)) return "";
+  return `${Number((value * 100).toFixed(2))}%`;
+}
 /** ECharts lifecycle adapted from the template's ArtifactView; no arbitrary JS. */
 export function Chart({
   option,
@@ -124,7 +139,7 @@ export function ArtifactChart({
     yAxis: {
       type: "value",
       splitLine: { lineStyle: { color: "#edf0e9" } },
-      axisLabel: { fontSize: 10 },
+      axisLabel: { fontSize: 10, formatter: axisNumber },
     },
     series: artifact.datasets.map((d) => ({
       name: d.name,
