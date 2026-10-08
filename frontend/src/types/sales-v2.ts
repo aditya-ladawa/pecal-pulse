@@ -149,6 +149,9 @@ export interface Detail {
     test_customers: number | null;
     wape: number | null;
     mae: number | null;
+    segment_label?: string | null;
+    segment_wape?: number | null;
+    segment_windows?: number | null;
   } | null;
   retention?: {
     tier: "lower" | "moderate" | "higher";

@@ -79,6 +79,22 @@ def _retention_curve(snapshot_id: str) -> dict | None:
     return payload
 
 
+@lru_cache(maxsize=8)
+def _volume_reliability(snapshot_id: str) -> dict | None:
+    """Challenger comparison + segment error sidecar; absent if unpublished."""
+    import json
+
+    root = Path(os.getenv("PECAL_ANALYTICS_ROOT", str(ANALYTICS_DEFAULT_ROOT))).resolve()
+    path = root / snapshot_id / "volume_reliability.json"
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if payload.get("snapshot_id") != snapshot_id:
+        return None
+    return payload
+
+
 def _retention_for_customer(snapshot_id: str, history) -> dict | None:
     sidecar = _retention_curve(snapshot_id)
     if not sidecar:
@@ -262,6 +278,12 @@ def customer_detail(customer_id: str, snapshot_id: str = DEFAULT_SNAPSHOT, windo
             "wape": metrics.get("wape"),
             "mae": metrics.get("mae"),
         }
+        reliability = _volume_reliability(snapshot_id) or {}
+        segment_entry = (reliability.get("segment_test") or {}).get(prediction.segment_id or "")
+        if segment_entry is not None:
+            forecast_quality["segment_label"] = segment_entry.get("label")
+            forecast_quality["segment_wape"] = segment_entry.get("wape")
+            forecast_quality["segment_windows"] = segment_entry.get("n")
     return {
         "metadata": _metadata(snapshot_id).model_dump(),
         "profile": detail["profile"].model_dump(),
