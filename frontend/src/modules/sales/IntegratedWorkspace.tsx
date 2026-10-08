@@ -217,7 +217,7 @@ export function IntegratedWorkspace() {
     >;
     volume_metrics: Record<
       string,
-      { test: { wape: number | null; mae: number } }
+      { validation?: { mae: number | null }; test: { wape: number | null; mae: number } }
     >;
   } | null>(null);
   const boot = s.v2!;
@@ -570,7 +570,7 @@ function InsightsView({
     >;
     volume_metrics: Record<
       string,
-      { test: { wape: number | null; mae: number } }
+      { validation?: { mae: number | null }; test: { wape: number | null; mae: number } }
     >;
   } | null;
 }) {
@@ -598,6 +598,7 @@ function InsightsView({
   const summary = evidence?.summary ?? null;
   const retention = evidence?.retention ?? null;
   const volume = evidence?.volume ?? null;
+  const servedValidationMae = report?.volume_metrics[volume?.served_method ?? ""]?.validation?.mae;
   const industryRows = Object.entries(summary?.industry_expected ?? {})
     .map(([id, v]) => ({
       id,
@@ -830,9 +831,9 @@ function InsightsView({
                       {volume!.served_method.replaceAll("_", " ")} (served)
                     </td>
                     <td>
-                      {volume!.served_test.mae == null
+                      {servedValidationMae == null
                         ? "—"
-                        : volume!.served_test.mae.toFixed(2)}
+                        : servedValidationMae.toFixed(2)}
                     </td>
                     <td>
                       {volume!.served_test.mae == null
@@ -1279,22 +1280,22 @@ export function CustomerEvidence({
                       ? {
                           silent: true,
                           itemStyle: {
-                            color: "rgba(160, 146, 193, 0.32)",
-                            borderColor: "rgba(112, 91, 151, 0.55)",
+                            color: "rgba(235, 155, 95, 0.22)",
+                            borderColor: "rgba(198, 105, 45, 0.55)",
                             borderWidth: 1.5,
                           },
                           label: {
                             show: true,
                             position: "insideTop",
                             distance: 6,
-                            color: "#3a2a52",
+                            color: "#754321",
                             fontSize: 16,
                             fontWeight: 800,
                             lineHeight: 20,
                             backgroundColor: "rgba(255, 255, 255, 0.94)",
                             padding: [8, 12],
                             borderRadius: 10,
-                            borderColor: "rgba(112, 91, 151, 0.35)",
+                            borderColor: "rgba(198, 105, 45, 0.35)",
                             borderWidth: 1,
                             formatter: `3-month total\n${forecastSupported ? `≈ ${Math.round(volume!.expected_total!)} calibrations` : "Insufficient history"}`,
                           },

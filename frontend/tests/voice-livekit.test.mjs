@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import ts from 'typescript';
 const code = ts.transpileModule(readFileSync(new URL('../src/modules/chat/voice-livekit.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
 const flush=()=>new Promise(r=>setImmediate(r));
-function setup() {
+function setup(language = 'de', transcript = 'Due soon') {
  const calls=[], requests=[], timeouts=[]; let release;
  class Room {
   state='disconnected';
@@ -16,15 +16,26 @@ function setup() {
   switchActiveDevice=async (kind,id)=>{calls.push(kind+':'+id);return true;};
   localParticipant={
    setMicrophoneEnabled:async value=>calls.push(value?'mic-on':'mic-off'),
-   performRpc:async ({method,payload,responseTimeout})=>{calls.push(method);timeouts.push({method,responseTimeout});if(method==='speak')calls.push(JSON.parse(payload));return method==='end_turn'?JSON.stringify({text:'Due soon',turn_id:'turn1'}):'';},
+   performRpc:async ({method,payload,responseTimeout})=>{calls.push(method);timeouts.push({method,responseTimeout});if(method==='speak')calls.push(JSON.parse(payload));return method==='end_turn'?JSON.stringify({text:transcript,turn_id:'turn1'}):'';},
   };
  }
  const exports={};
  const context={exports,crypto:{randomUUID:()=> 'session'},require:()=>({Room,ConnectionState:{Connected:'connected'},RoomEvent:{},Track:{Source:{Microphone:'mic'}}}),fetch:async(url,options)=>{requests.push({url,options});if(release && url.endsWith("/connect"))await new Promise(r=>release=r);return {ok:true,json:async()=>({server_url:'wss://example',token:'participant',agent_identity:'pulse-voice'})};}};
  vm.runInNewContext(code,context);
- const voice=new exports.LiveKitVoice({onSpeaking(){},onError(){}});
+ const voice=new exports.LiveKitVoice({onSpeaking(){},onError(){}}, language);
   return {voice,calls,requests,timeouts,delay:()=>{release=true;},release:()=>release()};
 }
+
+test('selected speech language reaches connection and transcript is preserved verbatim',async()=>{
+ for(const language of ['en','de']) {
+  const expected=language==='de'?'Müller: 30 Geräte, am 15. Oktober.':'Thirty instruments due on October fifteenth.';
+  const {voice,requests}=setup(language,expected);
+  await voice.start();
+  assert.equal(JSON.parse(requests[0].options.body).language,language);
+  assert.equal(await voice.finish(),expected);
+  voice.close();
+ }
+});
 
 test('microphone streams only during the explicit turn; final ties to turn ID',async()=>{
  const {voice,calls}=setup();assert.equal(await voice.start(),true);

@@ -263,7 +263,7 @@ export function OpportunityDashboard() {
           name: "Relative action urgency →",
           nameLocation: "middle",
           nameGap: 40,
-          splitLine: { lineStyle: { color: "#e9eee5" } },
+          splitLine: { lineStyle: { color: "#eee5dc" } },
           axisLine: { show: false },
         },
         yAxis: {
@@ -273,7 +273,7 @@ export function OpportunityDashboard() {
           axisLabel: { formatter: axisNumber },
           name: "Relative opportunity size",
           nameGap: 14,
-          splitLine: { lineStyle: { color: "#e9eee5" } },
+          splitLine: { lineStyle: { color: "#eee5dc" } },
           axisLine: { show: false },
         },
         dataZoom: [
@@ -354,7 +354,7 @@ export function OpportunityDashboard() {
                 label: {
                   show: true,
                   formatter: c.label,
-                  color: "#35432f",
+                  color: "#44352b",
                   fontSize: 11,
                   position: "top" as const,
                 },

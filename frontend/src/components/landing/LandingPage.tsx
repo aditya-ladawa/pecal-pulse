@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, Bell, TrendingUp, UsersRound } from "lucide-react";
-import { LandingSignal } from "./LandingSignal";
+import { PredictiveArcSignal } from "./PredictiveArcSignal";
 
 const features = [
   {
@@ -23,6 +23,19 @@ const features = [
 export function LandingPage() {
   return (
     <div className="landing-shell">
+      <div className="landing-background" aria-hidden="true">
+        <PredictiveArcSignal
+          background="#fcf9f5"
+          baseColor="#dbc9b8"
+          accentColor="#b78c6a"
+          highlight="#e5a777"
+          density={130}
+          dotSize={90}
+          speed={22}
+          hover={0}
+          signal={{ level: 52, amplitude: 23, thickness: 130, wavelength: 85 }}
+        />
+      </div>
       <header className="landing-header landing-container">
         <Link
           href="/"
@@ -31,31 +44,18 @@ export function LandingPage() {
         >
           Perschmann Hack
         </Link>
-        <nav className="landing-nav" aria-label="Landing page navigation">
-          <a href="#product">Product</a>
-          <Link href="/customers">Use Cases</Link>
-          <a href="#about">About</a>
-          <Link href="/dashboard" className="landing-nav-button">
-            Open Dashboard
-          </Link>
-        </nav>
       </header>
       <main>
         <section className="landing-hero" aria-labelledby="landing-heading">
-          <LandingSignal />
           <div className="landing-container landing-hero-inner">
             <div className="landing-copy">
-              <p className="landing-eyebrow">Data-driven sales intelligence</p>
-              <h1 id="landing-heading">Perschmann Hack</h1>
-              <h2>
-                Know which customer to contact next,
-                <br className="landing-desktop-break" /> why now, and what to
-                ask.
-              </h2>
+              <p className="landing-eyebrow">Turn calibration history into action</p>
+              <h1 id="landing-heading">
+                Know where to focus next.
+              </h1>
               <p className="landing-description" id="about">
-                Perschmann Hack helps sales teams turn data into
-                <br className="landing-desktop-break" /> meaningful
-                conversations and more opportunities.
+                Turn calibration history into clear customer priorities,
+                forecasts, and better sales conversations.
               </p>
               <div className="landing-actions">
                 <Link
@@ -63,12 +63,6 @@ export function LandingPage() {
                   className="landing-button landing-button-primary"
                 >
                   Open Dashboard <ArrowRight size={23} aria-hidden="true" />
-                </Link>
-                <Link
-                  href="/insights"
-                  className="landing-button landing-button-secondary"
-                >
-                  View Insights <ArrowRight size={23} aria-hidden="true" />
                 </Link>
               </div>
             </div>

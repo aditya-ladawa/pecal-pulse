@@ -3,7 +3,7 @@ import { useEffect, useRef } from "react";
 import * as echarts from "echarts";
 import type { EChartsOption } from "echarts";
 import type { ChartArtifact } from "@/types/sales";
-const colors = ["#72966a", "#edb482", "#a9bad8", "#c6b5d7", "#a8c6b6"];
+const colors = ["#db7639", "#f2b57e", "#a9bad8", "#c6b5d7", "#a8c6b6"];
 /**
  * Axis tick labels: at most two decimals with trailing zeros trimmed, so
  * ticks read 12.5 / 12.34 / 12 instead of 12.5000000001 or 12.00.
@@ -49,7 +49,7 @@ export function Chart({
     instance.current?.setOption(
       {
         color: colors,
-        textStyle: { fontFamily: "inherit", color: "#778073" },
+        textStyle: { fontFamily: "inherit", color: "#756b62" },
         animationDuration: 500,
         ...option,
       },
@@ -103,7 +103,7 @@ export function ArtifactChart({
             min: -1,
             max: 1,
             show: false,
-            inRange: { color: ["#edb482", "#f5f5ec", "#72966a"] },
+            inRange: { color: ["#f2b57e", "#fff9f3", "#db7639"] },
           },
           series: [
             {
@@ -138,7 +138,7 @@ export function ArtifactChart({
     },
     yAxis: {
       type: "value",
-      splitLine: { lineStyle: { color: "#edf0e9" } },
+      splitLine: { lineStyle: { color: "#eee5dc" } },
       axisLabel: { fontSize: 10, formatter: axisNumber },
     },
     series: artifact.datasets.map((d) => ({
