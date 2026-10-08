@@ -8,7 +8,6 @@ import {
 } from "@assistant-ui/react";
 import { MarkdownTextPrimitive } from "@assistant-ui/react-markdown";
 import {
-  Brain,
   Check,
   LoaderCircle,
   Wrench,
@@ -64,26 +63,14 @@ const ToolTrace = memo(function ToolTrace({
   );
 });
 const grouping = groupPartByType({
-  reasoning: ["group-reasoning"],
   "tool-call": ["group-tools"],
 });
 export function ChatParts() {
   return (
     <MessagePrimitive.GroupedParts groupBy={grouping}>
       {({ part, children }) => {
-        if (part.type === "group-reasoning") {
-          const active = part.status.type === "running";
-          return (
-            <details className="reasoning-block" open={active || undefined}>
-              <summary>
-                <Brain size={14} />
-                <span>{active ? "Thinking…" : "Thinking"}</span>
-                <ChevronRight size={13} className="disclosure-chevron" />
-              </summary>
-              <div className="reasoning-content">{children}</div>
-            </details>
-          );
-        }
+        // Reasoning is hidden by design; only tool calls are shown.
+        if (part.type === "reasoning") return null;
         if (part.type === "group-tools")
           return (
             <div className="tool-group" aria-label="Tool calls">
@@ -93,7 +80,7 @@ export function ChatParts() {
               {children}
             </div>
           );
-        if (part.type === "text" || part.type === "reasoning")
+        if (part.type === "text")
           return (
             <MarkdownTextPrimitive
               className="markdown"
