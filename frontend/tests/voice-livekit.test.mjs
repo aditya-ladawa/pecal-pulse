@@ -13,6 +13,7 @@ function setup() {
   startAudio=async()=>calls.push('unlock');
   connect=async()=>{calls.push('connect');this.state='connected';};
   disconnect=async()=>{calls.push('disconnect');this.state='disconnected';};
+  switchActiveDevice=async (kind,id)=>{calls.push(kind+':'+id);return true;};
   localParticipant={
    setMicrophoneEnabled:async value=>calls.push(value?'mic-on':'mic-off'),
    performRpc:async ({method,payload,responseTimeout})=>{calls.push(method);timeouts.push({method,responseTimeout});if(method==='speak')calls.push(JSON.parse(payload));return method==='end_turn'?JSON.stringify({text:'Due soon',turn_id:'turn1'}):'';},
@@ -59,6 +60,10 @@ test('lost agent session rejoins once and retries start_turn',async()=>{
  assert.ok(s.calls.includes('disconnect'));
  assert.equal(s.calls.filter(c=>c==='connect').length,2);
  s.voice.close();
+});
+test('speaker output routes through the room audio device switch',async()=>{
+ const {voice,calls}=setup();assert.equal(await voice.setOutput('sounddrum'),true);
+ assert.ok(calls.includes('audiooutput:sounddrum'));voice.close();
 });
 test('warm room is reused and cancellation interrupts the remote speech',async()=>{
  const {voice,calls}=setup();await voice.start();await voice.finish();await voice.cancel();await voice.start();
