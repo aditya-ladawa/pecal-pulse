@@ -105,7 +105,7 @@ class VoiceTurnTests(unittest.IsolatedAsyncioTestCase):
         self.session.commit_user_turn.assert_awaited_once_with(skip_reply=True,transcript_timeout=4.0,stt_flush_duration=0.5)
         payload=json.dumps({"turn_id":result["turn_id"],"text":"Found 12 accounts.\n\nDetailed chart explanation."})
         await self.handlers["speak"](self.data(payload)); await self.handlers["speak"](self.data(payload))
-        self.assertEqual([call.args[0] for call in self.session.say.call_args_list], ["I'll check that for you.","Found 12 accounts."])
+        self.assertEqual([call.args[0] for call in self.session.say.call_args_list], ["Ich schaue mir das an.","Found 12 accounts."])
 
     async def test_empty_transcript_cannot_trigger_ack_or_agent_command(self):
         from livekit import rtc

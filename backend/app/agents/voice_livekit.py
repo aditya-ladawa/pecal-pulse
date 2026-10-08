@@ -64,7 +64,8 @@ class VoiceConnection:
                            http_session=self.http)
         self.session = AgentSession(
             stt=inference.STT(model="deepgram/nova-3", language="multi", **credentials),
-            tts=inference.TTS(model="inworld/inworld-tts-2-flash", voice="Ashley", **credentials),
+            tts=inference.TTS(model="cartesia/sonic-3", voice="9626c31c-bec5-4cca-baa8-f8ba9e84c8bc",
+                               language="de", **credentials),
             vad=None,
             turn_handling=TurnHandlingOptions(turn_detection="manual"),
             user_away_timeout=None,
@@ -124,7 +125,7 @@ class VoiceConnection:
                 if not transcript or len(transcript) > 2000:
                     raise rtc.RpcError(1500, "No clear speech detected. Please try again.")
                 # Stream this immediately, without waiting for the LLM or a tool.
-                self.session.say("I'll check that for you.", add_to_chat_ctx=False)
+                self.session.say("Ich schaue mir das an.", add_to_chat_ctx=False)
                 return json.dumps({"text": transcript, "turn_id": self.turn_id})
             except rtc.RpcError:
                 raise
