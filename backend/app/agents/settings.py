@@ -8,6 +8,8 @@ ROOT = Path(__file__).resolve().parents[3]
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=ROOT / ".env", extra="ignore")
     openrouter_api_key: SecretStr = SecretStr("")
+    gradium_api_key: SecretStr = SecretStr("")
+    gradium_voice_id: str = "YTpq7expH9539ERJ"
     llm_model: str = Field(default="meta/muse-spark-1.3-contributor", min_length=1)
     checkpoint_path: str = "data/runtime/chat-checkpoints.sqlite3"
 

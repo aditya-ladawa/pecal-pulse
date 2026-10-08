@@ -6,39 +6,32 @@ import {
   useExternalStoreRuntime,
   ThreadPrimitive,
   MessagePrimitive,
-  ComposerPrimitive,
   ActionBarPrimitive,
   AuiIf,
   useAuiState,
   type ThreadMessageLike,
 } from "@assistant-ui/react";
 import {
-  ArrowUp,
   ArrowDown,
   Copy,
-  Mic,
   Sparkles,
   X,
-  Square,
   CheckCheck,
   ChartColumn,
   Maximize2,
   Minimize2,
+  Plus,
+  ArrowLeftRight,
 } from "lucide-react";
 import { filterCustomers, useSalesStore } from "@/modules/sales/store";
 import { streamChat, getChatStatus, getChatHistory } from "@/modules/sales/api";
 import { dispatchEvent } from "@/core/events/router";
 import { ArtifactChart } from "@/modules/artifacts/Chart";
 import { ChatParts } from "./ChatParts";
+import { VoicePanel } from "./VoicePanel";
 import { integratedSnapshot } from "@/modules/sales/IntegratedWorkspace";
 import { dashboardSnapshot } from "@/modules/sales/page-context";
 import type { Page, WorkspaceContext, ChatMessage } from "@/types/sales";
-const starters = [
-  "Show customers with calibrations due in the next 30 days",
-  "Open the highest-priority customer's preview",
-  "Draft follow-up emails for the top 3 customers",
-  "Show saved follow-ups",
-];
 export function SalesAssistantProvider({ children }: { children: ReactNode }) {
   const messages = useSalesStore((s) => s.messages),
     apiStatus = useSalesStore((s) => s.apiStatus),
@@ -96,6 +89,8 @@ export function SalesAssistantProvider({ children }: { children: ReactNode }) {
         .join("\n");
       if (!text.trim()) return;
       const s = useSalesStore.getState();
+      const voiceTurn = s.voiceInputPending;
+      s.set({ voiceInputPending: false });
       const threadId = s.threadId || crypto.randomUUID();
       localStorage.setItem("pecal-chat-thread", threadId);
       const assistantId = crypto.randomUUID();
@@ -225,6 +220,16 @@ export function SalesAssistantProvider({ children }: { children: ReactNode }) {
               }));
             }
           } else if (event.type === "done") {
+            if (
+              voiceTurn &&
+              !abort.signal.aborted &&
+              event.reply.message.trim()
+            )
+              useSalesStore
+                .getState()
+                .set({
+                  voiceResponse: { id: assistantId, text: event.reply.message },
+                });
             updateAssistant((m) => ({
               ...m,
               text: event.reply.message,
@@ -326,160 +331,84 @@ function AssistantMessage() {
 export function SalesAssistant() {
   const open = useSalesStore((s) => s.assistantOpen),
     expanded = useSalesStore((s) => s.assistantExpanded),
+    side = useSalesStore((s) => s.assistantSide),
+    voiceResetRevision = useSalesStore((s) => s.voiceResetRevision),
     set = useSalesStore((s) => s.set),
-    status = useSalesStore((s) => s.apiStatus),
-    chatStatus = useSalesStore((s) => s.chatStatus),
     chatLoading = useSalesStore((s) => s.chatLoading),
     running = useAuiState((s) => s.thread.isRunning);
   if (!open) return null;
   return (
     <aside
-      className={`chat-drawer${expanded ? " expanded" : ""}`}
+      className={`chat-drawer voice-drawer${expanded ? " expanded" : ""}${expanded && side === "left" ? " dock-left" : ""}`}
       aria-label="Sales assistant"
     >
-      <div className="chat-header">
-        <span className="chat-orb">
-          <Sparkles size={23} />
-        </span>
-        <div>
-          <strong>Your sales assistant</strong>
-          <small>Pulse · sales copilot</small>
+      <div className="chat-header compact-chat-header">
+        <strong>Pulse</strong>
+        <div className="chat-header-actions">
+          <button
+            className="icon-button"
+            aria-label="New conversation"
+            title="New conversation"
+            disabled={running || chatLoading}
+            onClick={() => {
+              localStorage.removeItem("pecal-chat-thread");
+              set({
+                threadId: null,
+                messages: [],
+                voiceResponse: null,
+                voiceInputPending: false,
+                voiceResetRevision: voiceResetRevision + 1,
+              });
+            }}
+          >
+            <Plus size={17} />
+          </button>
+          {expanded && (
+            <button
+              className="icon-button"
+              aria-label={`Move assistant to ${side === "right" ? "left" : "right"}`}
+              title="Move panel to other side"
+              onClick={() =>
+                set({ assistantSide: side === "right" ? "left" : "right" })
+              }
+            >
+              <ArrowLeftRight size={17} />
+            </button>
+          )}
+          <button
+            className="icon-button"
+            aria-label={
+              expanded ? "Collapse sales assistant" : "Expand sales assistant"
+            }
+            title={expanded ? "Collapse panel" : "Expand panel"}
+            aria-expanded={expanded}
+            onClick={() => set({ assistantExpanded: !expanded })}
+          >
+            {expanded ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
+          </button>
+          <button
+            className="icon-button"
+            aria-label="Close sales assistant"
+            title="Close panel"
+            onClick={() => set({ assistantOpen: false })}
+          >
+            <X size={17} />
+          </button>
         </div>
-        <button
-          className="icon-button"
-          aria-label="New conversation"
-          title="New conversation"
-          disabled={running || chatLoading}
-          onClick={() => {
-            localStorage.removeItem("pecal-chat-thread");
-            set({ threadId: null, messages: [] });
-          }}
-        >
-          +
-        </button>
-        <button
-          className="icon-button"
-          aria-label={
-            expanded ? "Collapse sales assistant" : "Expand sales assistant"
-          }
-          title={expanded ? "Collapse panel" : "Expand panel"}
-          aria-expanded={expanded}
-          onClick={() => set({ assistantExpanded: !expanded })}
-        >
-          {expanded ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
-        </button>
-        <button
-          className="icon-button"
-          aria-label="Close sales assistant"
-          onClick={() => set({ assistantOpen: false })}
-        >
-          <X size={19} />
-        </button>
-      </div>
-      <div className="chat-context">
-        <span className="status-dot" />
-        {chatLoading
-          ? "Restoring conversation…"
-          : chatStatus?.configured
-            ? `AI assistant · ${chatStatus.data_mode} workspace data`
-            : "Assistant unavailable · check backend configuration"}
       </div>
       <ThreadPrimitive.Root className="chat-thread">
         <ThreadPrimitive.Viewport className="chat-viewport">
-          <AuiIf condition={(s) => s.thread.isEmpty && !s.thread.isRunning}>
-            <div className="chat-welcome">
-              <div className="welcome-spark">
-                <Sparkles size={28} />
-              </div>
-              <h2>
-                A little help with
-                <br />
-                your next conversation.
-              </h2>
-              <p>Find an account, explore its evidence, or create a chart.</p>
-              <div className="suggestions">
-                {starters.map((prompt) => (
-                  <ThreadPrimitive.Suggestion
-                    key={prompt}
-                    prompt={prompt}
-                    send
-                    className="suggestion"
-                  >
-                    {prompt}
-                    <ArrowUp size={13} />
-                  </ThreadPrimitive.Suggestion>
-                ))}
-              </div>
-              <small>
-                Ask Pulse to explain this page using its source evidence, change
-                filters, open an account or create a chart.
-              </small>
-            </div>
-          </AuiIf>
           <ThreadPrimitive.Messages>
             {({ message }) =>
               message.role === "user" ? <UserMessage /> : <AssistantMessage />
             }
           </ThreadPrimitive.Messages>
-          <AuiIf condition={(s) => s.thread.isRunning}>
-            <div className="thinking">
-              <i />
-              <i />
-              <i />
-              <span>Working on your request…</span>
-            </div>
-          </AuiIf>
         </ThreadPrimitive.Viewport>
         <ThreadPrimitive.ScrollToBottom className="scroll-latest">
-          <ArrowDown size={13} /> Latest
+          <ArrowDown size={13} />
+          Latest
         </ThreadPrimitive.ScrollToBottom>
-        <div className="composer-wrap">
-          <ComposerPrimitive.Root className="composer">
-            <ComposerPrimitive.Input
-              aria-label="Message sales assistant"
-              placeholder={
-                status !== "connected"
-                  ? "Backend offline — reconnect to chat"
-                  : chatLoading
-                    ? "Restoring conversation…"
-                    : !chatStatus?.configured
-                      ? "Configure the backend to chat"
-                      : "Ask about customers, or try a prompt…"
-              }
-              rows={2}
-            />
-            <div className="composer-bottom">
-              <button
-                disabled
-                className="icon-button"
-                aria-label="Voice input unavailable"
-                title="Voice will be connected later"
-              >
-                <Mic size={18} />
-              </button>
-              <span>Sales workspace context included</span>
-              <AuiIf condition={(s) => !s.thread.isRunning}>
-                <ComposerPrimitive.Send
-                  className="send-button"
-                  aria-label="Send message"
-                >
-                  <ArrowUp size={18} />
-                </ComposerPrimitive.Send>
-              </AuiIf>
-              <AuiIf condition={(s) => s.thread.isRunning}>
-                <ComposerPrimitive.Cancel
-                  className="send-button"
-                  aria-label="Stop response"
-                >
-                  <Square size={14} />
-                </ComposerPrimitive.Cancel>
-              </AuiIf>
-            </div>
-          </ComposerPrimitive.Root>
-          <div className="composer-note">
-            AI suggestions need your review · check source evidence.
-          </div>
-        </div>
+        <VoicePanel key={voiceResetRevision} />
       </ThreadPrimitive.Root>
     </aside>
   );
