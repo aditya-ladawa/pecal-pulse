@@ -462,6 +462,12 @@ def create_followup(request: v2.FollowupCreateV2, snapshot_id: str = DEFAULT_SNA
     except ValueError:
         raise HTTPException(404, f"Unknown customer: {request.customer_id}")
     known = _known_reason_ids(snapshot_id, request.customer_id, detail)
+    if request.email_draft is not None:
+        draft = request.email_draft
+        if draft.snapshot_id != snapshot_id or draft.reference_date != data.get_manifest(snapshot_id).reference_date:
+            raise HTTPException(422, "Email draft evidence does not match the active snapshot")
+        if set(draft.reason_ids) != set(request.reason_ids):
+            raise HTTPException(422, "Email draft reasons must match the linked follow-up reasons")
     unknown = [rid for rid in request.reason_ids if rid not in known]
     if unknown:
         raise HTTPException(404, f"Unknown reason ids: {sorted(unknown)}")

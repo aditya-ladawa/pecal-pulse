@@ -18,6 +18,11 @@ import {
   type CommercialScenario,
 } from "@/types/opportunities";
 interface SalesState {
+  customerOffset: number;
+  dashboardOffset: number;
+  customerListLoading: boolean;
+  opportunitiesLoading: boolean;
+  workflowRevision: number;
   opportunities: OpportunityResponse | null;
   opportunityFilters: OpportunityFilters;
   opportunityCluster: string | null;
@@ -58,6 +63,11 @@ export const defaultFilters: CustomerFilters = {
   query: "",
 };
 export const useSalesStore = create<SalesState>((set) => ({
+  customerOffset: 0,
+  dashboardOffset: 0,
+  customerListLoading: false,
+  opportunitiesLoading: false,
+  workflowRevision: 0,
   opportunities: null,
   opportunityFilters: defaultOpportunityFilters,
   opportunityCluster: null,

@@ -439,44 +439,6 @@ export function Dashboard() {
           </div>
         </div>
       </Card>
-      {!!artifacts.length && (
-        <section className="artifact-section">
-          <div className="section-heading">
-            <div>
-              <div className="eyebrow">CREATED WITH YOUR ASSISTANT</div>
-              <h2>Your workspace charts</h2>
-            </div>
-            <Badge tone="purple">
-              <Plus size={12} /> {artifacts.length} artifact
-              {artifacts.length > 1 ? "s" : ""}
-            </Badge>
-          </div>
-          <div className="chart-grid">
-            {artifacts.map((a) => (
-              <Card key={a.id}>
-                <div className="card-heading">
-                  <h2>{a.title}</h2>
-                  <button
-                    className="icon-button"
-                    aria-label={`Remove ${a.title}`}
-                    onClick={() =>
-                      set({
-                        artifacts: artifacts.filter((item) => item.id !== a.id),
-                      })
-                    }
-                  >
-                    <X size={17} />
-                  </button>
-                </div>
-                <ArtifactChart artifact={a} />
-                <p className="chart-caption">
-                  Synthetic {a.unit} · created through a typed workspace command
-                </p>
-              </Card>
-            ))}
-          </div>
-        </section>
-      )}
     </>
   );
 }

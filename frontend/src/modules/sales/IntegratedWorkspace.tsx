@@ -12,11 +12,11 @@ import {
   request,
 } from "./api";
 import { openCustomer, dispatchEvent } from "@/core/events/router";
-import { axisNumber, axisPercent, Chart, ArtifactChart } from "@/modules/artifacts/Chart";
+import { axisNumber, axisPercent, Chart } from "@/modules/artifacts/Chart";
 import { InstrumentTiming } from "./InstrumentTiming";
+import { FollowupEmail } from "./FollowupEmail";
 import { Card, InfoHint } from "@/components/ui/Primitives";
 import type { Bootstrap, Detail, InsightsEvidence } from "@/types/sales-v2";
-import type { ChartArtifact } from "@/types/sales";
 import type { EventEnvelope, PageSnapshot } from "@/types/sales";
 import {
   BatchReasonSummary,
@@ -34,7 +34,42 @@ export function integratedSnapshot(
   detail: Detail | null,
   page: "dashboard" | "customers" | "follow-ups" | "insights",
 ): PageSnapshot {
-  const opportunities = useSalesStore.getState().opportunities;
+  const state = useSalesStore.getState();
+  if (detail && detail.profile.customer_id !== state.selectedId) detail = null;
+  const opportunities = state.opportunities;
+  if (
+    page === "follow-ups" ||
+    (page === "customers" && state.customerView === "follow-ups")
+  ) {
+    const tasks = state.data.followups;
+    return {
+      page,
+      title: "Follow-ups",
+      metrics: [
+        {
+          label: "Open follow-ups",
+          value: tasks.filter((t) => t.status === "open").length,
+          unit: "tasks",
+          scope: "Local saved tasks for the active snapshot",
+          definition:
+            "An open task is not a sent email or confirmed calibration need.",
+        },
+      ],
+      sections: ["Saved next steps", "Customer-specific email drafts"],
+      visible_rows: tasks
+        .slice(0, 50)
+        .map((t) => ({
+          id: t.id,
+          customer_id: t.customer_id,
+          customer: t.customer_name,
+          owner: t.owner,
+          due_date: t.due_date,
+          status: t.status,
+          note: t.note,
+          email_subject: t.email_draft?.subject ?? null,
+        })),
+    };
+  }
   if (page === "dashboard") {
     const metrics =
       opportunities?.metrics.map(({ caption, ...metric }) => ({
@@ -50,7 +85,30 @@ export function integratedSnapshot(
         definition:
           "Supported account-wide calibration forecast multiplied by supplied unit contribution; not net profit or incremental outreach benefit.",
       };
-    return { page, title: "Opportunity dashboard", metrics };
+    return {
+      page,
+      title: "Opportunity dashboard",
+      metrics,
+      loading: state.opportunitiesLoading,
+      sections: [
+        "Where should we focus?",
+        "Opportunity groups",
+        "Ranked customer shortlist",
+        ...(state.opportunityDrawerId
+          ? ["Customer conversation preparation drawer"]
+          : []),
+      ],
+      visible_rows:
+        opportunities?.items.map((p) => ({
+          customer_id: p.customer_id,
+          customer: p.display_name,
+          industry: p.industry_label,
+          segment: p.segment_label,
+          priority: p.priority_score,
+          owner: p.owner,
+          readiness: p.readiness,
+        })) ?? [],
+    };
   }
   const metrics =
     page === "customers" &&
@@ -97,12 +155,56 @@ export function integratedSnapshot(
           ? "Insights"
           : "Follow-ups",
     metrics,
+    loading:
+      page === "customers" &&
+      (state.customerListLoading ||
+        !detail ||
+        detail.profile.customer_id !== state.selectedId),
+    sections:
+      page === "customers"
+        ? [
+            "Your accounts",
+            "Overview",
+            "Equipment",
+            "Next step",
+            ...(state.customerTab === "activity"
+              ? ["Customer activity", "Why contact this customer?"]
+              : state.customerTab === "portfolio"
+                ? [
+                    "Calibration work with us",
+                    "Services to ask about",
+                    "Instrument date records",
+                  ]
+                : ["Conversation preparation", "Record the next step"]),
+          ]
+        : [
+            "Expected calibrations by industry",
+            "Retention risk by industry",
+            "Do silent customers come back?",
+            "Volume methods put to the test",
+            "Where the calibration work comes from",
+            "Next-month sector outlook",
+            "Retention tiers right now",
+            "Model quality & coverage",
+          ],
+    visible_rows:
+      page === "customers"
+        ? (state.v2List?.items.map((r) => ({
+            customer_id: r.profile.customer_id,
+            customer: r.profile.display_name,
+            industry: r.profile.industry_label,
+            segment_id: r.segment_id,
+            priority: r.primary_action?.priority_score,
+            purpose: r.primary_action?.primary_type,
+          })) ?? [])
+        : [],
   };
 }
 export function IntegratedWorkspace() {
   const pathname = usePathname();
   const s = useSalesStore();
-  const [offset, setOffset] = useState(0);
+  const offset = s.customerOffset;
+  const setOffset = (value: number) => s.set({ customerOffset: value });
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [report, setReport] = useState<{
@@ -146,6 +248,7 @@ export function IntegratedWorkspace() {
     if (pathname !== "/customers") return;
     let alive = true;
     setPending(true);
+    s.set({ customerListLoading: true });
     setError("");
     getV2Customers(sid, s.filters, offset)
       .then((list) => {
@@ -155,12 +258,15 @@ export function IntegratedWorkspace() {
         if (alive) setError(e.message);
       })
       .finally(() => {
-        if (alive) setPending(false);
+        if (alive) {
+          setPending(false);
+          s.set({ customerListLoading: false });
+        }
       });
     return () => {
       alive = false;
     };
-  }, [sid, pathname, s.filters, offset, s.set]);
+  }, [sid, pathname, s.filters, offset, s.workflowRevision, s.set]);
   useEffect(() => {
     if (pathname !== "/customers" || !s.selectedId) return;
     let alive = true;
@@ -175,7 +281,7 @@ export function IntegratedWorkspace() {
     return () => {
       alive = false;
     };
-  }, [sid, pathname, s.selectedId, s.set]);
+  }, [sid, pathname, s.selectedId, s.workflowRevision, s.set]);
   const refresh = async () => {
     const [detail, tasks, boot] = await Promise.all([
       getV2Detail(sid, s.selectedId),
@@ -229,6 +335,9 @@ export function IntegratedWorkspace() {
                   <small>
                     {task.owner} · {task.due_date} · {task.outcome}
                   </small>
+                  {task.email_draft && (
+                    <FollowupEmail draft={task.email_draft} />
+                  )}
                 </div>
                 <button
                   className="button"
@@ -444,22 +553,26 @@ export function IntegratedWorkspace() {
       </div>
     );
   if (pathname !== "/insights") return <OpportunityDashboard />;
-  return <InsightsView boot={boot} report={report} artifacts={s.artifacts} />;
+  return <InsightsView boot={boot} report={report} />;
 }
 function InsightsView({
   boot,
   report,
-  artifacts,
 }: {
   boot: Bootstrap;
   report: {
     supported_customers: number;
     selected_activity: string;
     selected_volume: string;
-    activity_metrics: Record<string, { test: { roc_auc: number | null; brier: number } }>;
-    volume_metrics: Record<string, { test: { wape: number | null; mae: number } }>;
+    activity_metrics: Record<
+      string,
+      { test: { roc_auc: number | null; brier: number } }
+    >;
+    volume_metrics: Record<
+      string,
+      { test: { wape: number | null; mae: number } }
+    >;
   } | null;
-  artifacts: ChartArtifact[];
 }) {
   const [evidence, setEvidence] = useState<InsightsEvidence | null>(null);
   const [evidenceMissing, setEvidenceMissing] = useState(false);
@@ -486,7 +599,12 @@ function InsightsView({
   const retention = evidence?.retention ?? null;
   const volume = evidence?.volume ?? null;
   const industryRows = Object.entries(summary?.industry_expected ?? {})
-    .map(([id, v]) => ({ id, label: v.label || id, expected: v.expected || 0, accounts: v.accounts || 0 }))
+    .map(([id, v]) => ({
+      id,
+      label: v.label || id,
+      expected: v.expected || 0,
+      accounts: v.accounts || 0,
+    }))
     .sort((a, b) => b.expected - a.expected)
     .slice(0, 12);
   const riskRows = Object.entries(summary?.retention_by_industry ?? {})
@@ -499,12 +617,14 @@ function InsightsView({
     }))
     .sort((a, b) => b.higher + b.moderate - (a.higher + a.moderate))
     .slice(0, 10);
-  const challengerRows = Object.entries(volume?.challengers ?? {}).map(([method, stages]) => ({
-    method,
-    validationMae: stages.validation?.mae,
-    testMae: stages.test?.mae,
-    testWape: stages.test?.wape,
-  }));
+  const challengerRows = Object.entries(volume?.challengers ?? {}).map(
+    ([method, stages]) => ({
+      method,
+      validationMae: stages.validation?.mae,
+      testMae: stages.test?.mae,
+      testWape: stages.test?.wape,
+    }),
+  );
   const tiers = retention?.tier_distribution_at_reference ?? {};
   const sectorTotals =
     sectors?.history.map((h) => ({
@@ -523,7 +643,10 @@ function InsightsView({
     : "";
   return (
     <>
-      <Heading title="Insights" text="Where the work is coming from, where risk sits, and how far to trust the numbers" />
+      <Heading
+        title="Insights"
+        text="Where the work is coming from, where risk sits, and how far to trust the numbers"
+      />
       {evidenceMissing && (
         <Card>
           <p>
@@ -556,7 +679,11 @@ function InsightsView({
                 data: industryRows.map((r) => r.label),
                 axisLabel: { rotate: 32, fontSize: 9, interval: 0 },
               },
-              yAxis: { type: "value", name: "Expected calibrations", axisLabel: { formatter: axisNumber } },
+              yAxis: {
+                type: "value",
+                name: "Expected calibrations",
+                axisLabel: { formatter: axisNumber },
+              },
               series: [
                 {
                   name: "Expected calibrations",
@@ -575,8 +702,8 @@ function InsightsView({
           <h2>Retention risk by industry</h2>
           <InfoHint label="retention risk by industry">
             Measured tiers from past silence episodes: of similarly silent
-            accounts, how many returned within three months. Higher risk
-            means fewer returned — a check-in signal, never a churn label.
+            accounts, how many returned within three months. Higher risk means
+            fewer returned — a check-in signal, never a churn label.
           </InfoHint>
         </div>
         {riskRows.length ? (
@@ -595,11 +722,30 @@ function InsightsView({
                 data: riskRows.map((r) => r.label),
                 axisLabel: { rotate: 32, fontSize: 9, interval: 0 },
               },
-              yAxis: { type: "value", name: "Accounts", axisLabel: { formatter: axisNumber } },
+              yAxis: {
+                type: "value",
+                name: "Accounts",
+                axisLabel: { formatter: axisNumber },
+              },
               series: [
-                { name: "Higher risk", type: "bar", stack: "risk", data: riskRows.map((r) => r.higher) },
-                { name: "Moderate risk", type: "bar", stack: "risk", data: riskRows.map((r) => r.moderate) },
-                { name: "Lower risk", type: "bar", stack: "risk", data: riskRows.map((r) => r.lower) },
+                {
+                  name: "Higher risk",
+                  type: "bar",
+                  stack: "risk",
+                  data: riskRows.map((r) => r.higher),
+                },
+                {
+                  name: "Moderate risk",
+                  type: "bar",
+                  stack: "risk",
+                  data: riskRows.map((r) => r.moderate),
+                },
+                {
+                  name: "Lower risk",
+                  type: "bar",
+                  stack: "risk",
+                  data: riskRows.map((r) => r.lower),
+                },
               ],
             }}
           />
@@ -631,7 +777,9 @@ function InsightsView({
                 xAxis: {
                   type: "category",
                   name: "Silent months",
-                  data: (retention.forward_curve.regular || []).map((p) => String(p.silent_months)),
+                  data: (retention.forward_curve.regular || []).map((p) =>
+                    String(p.silent_months),
+                  ),
                 },
                 yAxis: {
                   type: "value",
@@ -643,7 +791,8 @@ function InsightsView({
                 series: (["regular", "irregular"] as const)
                   .filter((k) => retention.forward_curve[k]?.length)
                   .map((k) => ({
-                    name: k === "regular" ? "Regular history" : "Irregular history",
+                    name:
+                      k === "regular" ? "Regular history" : "Irregular history",
                     type: "line",
                     showSymbol: true,
                     data: retention.forward_curve[k].map((p) => p.return_rate),
@@ -659,9 +808,9 @@ function InsightsView({
             <h2>Volume methods put to the test</h2>
             <InfoHint label="volume method comparison">
               Croston, TSB and industry-pooled estimators were scored on the
-              pipeline's own chronological validation windows with the same
-              MAE selection rule. The simple 12-month average still wins, so
-              it stays — this table is the receipt.
+              pipeline's own chronological validation windows with the same MAE
+              selection rule. The simple 12-month average still wins, so it
+              stays — this table is the receipt.
             </InfoHint>
           </div>
           {challengerRows.length ? (
@@ -677,23 +826,39 @@ function InsightsView({
                 </thead>
                 <tbody>
                   <tr key={volume!.served_method}>
-                    <td>{volume!.served_method.replaceAll("_", " ")} (served)</td>
                     <td>
-                      {volume!.served_test.mae == null ? "—" : volume!.served_test.mae.toFixed(2)}
+                      {volume!.served_method.replaceAll("_", " ")} (served)
                     </td>
                     <td>
-                      {volume!.served_test.mae == null ? "—" : volume!.served_test.mae.toFixed(2)}
+                      {volume!.served_test.mae == null
+                        ? "—"
+                        : volume!.served_test.mae.toFixed(2)}
                     </td>
                     <td>
-                      {volume!.served_test.wape == null ? "—" : `${(volume!.served_test.wape * 100).toFixed(1)}%`}
+                      {volume!.served_test.mae == null
+                        ? "—"
+                        : volume!.served_test.mae.toFixed(2)}
+                    </td>
+                    <td>
+                      {volume!.served_test.wape == null
+                        ? "—"
+                        : `${(volume!.served_test.wape * 100).toFixed(1)}%`}
                     </td>
                   </tr>
                   {challengerRows.map((r) => (
                     <tr key={r.method}>
                       <td>{r.method.replaceAll("_", " ")}</td>
-                      <td>{r.validationMae == null ? "—" : r.validationMae.toFixed(2)}</td>
+                      <td>
+                        {r.validationMae == null
+                          ? "—"
+                          : r.validationMae.toFixed(2)}
+                      </td>
                       <td>{r.testMae == null ? "—" : r.testMae.toFixed(2)}</td>
-                      <td>{r.testWape == null ? "—" : `${(r.testWape * 100).toFixed(1)}%`}</td>
+                      <td>
+                        {r.testWape == null
+                          ? "—"
+                          : `${(r.testWape * 100).toFixed(1)}%`}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -714,9 +879,9 @@ function InsightsView({
           <div className="card-heading">
             <h2>Where the calibration work comes from</h2>
             <InfoHint label="share of calibrations by industry">
-              Share of observed calibration events per industry over the
-              sector history window. Descriptive history, not a forecast and
-              not revenue.
+              Share of observed calibration events per industry over the sector
+              history window. Descriptive history, not a forecast and not
+              revenue.
             </InfoHint>
           </div>
           {sectors?.history.length ? (
@@ -733,7 +898,11 @@ function InsightsView({
                       : "";
                   },
                 },
-                legend: { type: "scroll", bottom: 0, textStyle: { fontSize: 10 } },
+                legend: {
+                  type: "scroll",
+                  bottom: 0,
+                  textStyle: { fontSize: 10 },
+                },
                 series: [
                   {
                     name: "Calibration share",
@@ -743,10 +912,14 @@ function InsightsView({
                     avoidLabelOverlap: true,
                     label: {
                       show: true,
-                      formatter: (p) => axisPercent((Number(p.percent) || 0) / 100),
+                      formatter: (p) =>
+                        axisPercent((Number(p.percent) || 0) / 100),
                     },
                     labelLine: { length: 8, length2: 8 },
-                    data: pieRows.map((r) => ({ name: r.label, value: r.total })),
+                    data: pieRows.map((r) => ({
+                      name: r.label,
+                      value: r.total,
+                    })),
                   },
                 ],
               }}
@@ -766,8 +939,8 @@ function InsightsView({
           <Card>
             <h2>Next-month sector outlook</h2>
             <p>
-              Separately evaluated one-step baselines for capacity planning,
-              not account prioritization.
+              Separately evaluated one-step baselines for capacity planning, not
+              account prioritization.
             </p>
             <div className="integrated-table">
               <table>
@@ -851,12 +1024,6 @@ function InsightsView({
           </small>
         </Card>
       )}
-      {artifacts.map((a) => (
-        <Card key={a.id}>
-          <h2>{a.title}</h2>
-          <ArtifactChart artifact={a} />
-        </Card>
-      ))}
     </>
   );
 }
@@ -1093,7 +1260,12 @@ export function CustomerEvidence({
                     ...futureMonths,
                   ],
                 },
-                yAxis: { type: "value", min: 0, minInterval: 1, axisLabel: { formatter: axisNumber } },
+                yAxis: {
+                  type: "value",
+                  min: 0,
+                  minInterval: 1,
+                  axisLabel: { formatter: axisNumber },
+                },
                 series: [
                   {
                     name: "Completed calibrations",

@@ -9,10 +9,16 @@ export function dispatchEvent(event: EventEnvelope) {
       s.set({
         opportunityFilters: { ...s.opportunityFilters, ...event.payload },
         opportunityCluster: null,
+        dashboardOffset: 0,
+        opportunitiesLoading: true,
       });
       break;
     case "opportunities.cluster.select":
-      s.set({ opportunityCluster: event.payload.cluster_id });
+      s.set({
+        opportunityCluster: event.payload.cluster_id,
+        dashboardOffset: 0,
+        opportunitiesLoading: true,
+      });
       break;
 
     case "ui.control.set":
@@ -24,7 +30,32 @@ export function dispatchEvent(event: EventEnvelope) {
             : {}),
         });
       else if (event.payload.control === "dashboard.action_limit")
-        s.set({ actionLimit: event.payload.value });
+        s.set({ actionLimit: event.payload.value, dashboardOffset: 0 });
+      else if (event.payload.control === "customers.view")
+        s.set({ customerView: event.payload.value });
+      else if (event.payload.control === "customers.offset")
+        s.set({
+          customerOffset: event.payload.value,
+          customerListLoading: true,
+        });
+      else if (event.payload.control === "dashboard.offset")
+        s.set({
+          dashboardOffset: event.payload.value,
+          opportunitiesLoading: true,
+        });
+      else if (event.payload.control === "dashboard.display_limit")
+        s.set({ opportunityDisplayLimit: event.payload.value });
+      else if (event.payload.control === "dashboard.preview")
+        s.set({
+          opportunityDrawerId: event.payload.value,
+          ...(event.payload.value
+            ? {
+                selectedId: event.payload.value,
+                customerTab: "activity" as const,
+                v2Detail: null,
+              }
+            : {}),
+        });
       break;
     case "ui.navigate":
       s.set({ requestedPage: event.payload.page });
@@ -32,6 +63,8 @@ export function dispatchEvent(event: EventEnvelope) {
     case "customers.filters.set":
       s.set({
         filters: { ...s.filters, ...event.payload },
+        customerOffset: 0,
+        customerListLoading: true,
         notice: "Customer filters updated",
       });
       break;
@@ -43,21 +76,28 @@ export function dispatchEvent(event: EventEnvelope) {
         s.set({
           selectedId: event.payload.customer_id,
           customerView: "accounts",
+          v2Detail: null,
         });
       break;
     case "artifact.created":
+      // Artifacts belong to the assistant message, not to Dashboard/Insights.
+      break;
+    case "accounts.assigned":
+    case "customer.workflow.updated":
       s.set({
-        artifacts: [
-          ...s.artifacts.filter((a) => a.id !== event.payload.id),
-          event.payload,
-        ],
-        notice: "Chart added to your workspace",
+        workflowRevision: s.workflowRevision + 1,
+        opportunityRevision: s.opportunityRevision + 1,
+        notice:
+          event.type === "accounts.assigned"
+            ? `${event.payload.customer_ids.length} accounts assigned to ${event.payload.owner}`
+            : "Customer next step updated",
       });
       break;
     case "followup.created":
     case "followup.updated":
       s.set({
         opportunityRevision: s.opportunityRevision + 1,
+        workflowRevision: s.workflowRevision + 1,
         data: {
           ...s.data,
           followups: [

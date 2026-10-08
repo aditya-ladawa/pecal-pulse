@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import type { EChartsOption } from "echarts";
 import { ArrowUpRight, Download, Save, X } from "lucide-react";
 import { Card, InfoHint } from "@/components/ui/Primitives";
-import { axisNumber, Chart, ArtifactChart } from "@/modules/artifacts/Chart";
+import { axisNumber, Chart } from "@/modules/artifacts/Chart";
 import { useSalesStore } from "./store";
 import { request, getV2Detail, getV2Followups, patchV2Workflow } from "./api";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
@@ -44,8 +44,9 @@ export function OpportunityDashboard() {
     sid = s.v2!.metadata.snapshot_id;
   const [pending, setPending] = useState(false),
     [error, setError] = useState("");
-  const [offset, setOffset] = useState(0),
-    [detail, setDetail] = useState<Detail | null>(null);
+  const offset = s.dashboardOffset;
+  const setOffset = (value: number) => s.set({ dashboardOffset: value });
+  const [detail, setDetail] = useState<Detail | null>(null);
   const [saving, setSaving] = useState(false);
   const [savedLists, setSavedLists] = useState<SavedList[]>([]);
   const data = s.opportunities;
@@ -66,6 +67,7 @@ export function OpportunityDashboard() {
     let alive = true;
     const controller = new AbortController();
     setPending(true);
+    s.set({ opportunitiesLoading: true });
     setError("");
     const params = new URLSearchParams({
       snapshot_id: sid,
@@ -87,7 +89,10 @@ export function OpportunityDashboard() {
         if (alive) setError(e.message);
       })
       .finally(() => {
-        if (alive) setPending(false);
+        if (alive) {
+          setPending(false);
+          s.set({ opportunitiesLoading: false });
+        }
       });
     return () => {
       alive = false;
@@ -132,7 +137,13 @@ export function OpportunityDashboard() {
       document.removeEventListener("keydown", close);
       document.body.style.overflow = previous;
     };
-  }, [sid, s.opportunityDrawerId, s.opportunityFilters, s.set]);
+  }, [
+    sid,
+    s.opportunityDrawerId,
+    s.opportunityFilters,
+    s.workflowRevision,
+    s.set,
+  ]);
   const changeFilters = (patch: Partial<OpportunityFilters>) =>
     s.set({
       opportunityFilters: { ...s.opportunityFilters, ...patch },
@@ -232,7 +243,8 @@ export function OpportunityDashboard() {
               seriesName?: string;
             };
             const p = raw.data;
-            if (p?.cluster) return `${p.groupLabel}\nClick to select this group`;
+            if (p?.cluster)
+              return `${p.groupLabel}\nClick to select this group`;
             const c = p?.point;
             if (c)
               return `${c.display_name}\n${c.industry_label} · ${c.segment_label || "Unassigned segment"}\nUrgency percentile ${format(c.urgency_score)} · size percentile ${format(c.size_score)}\n${c.size_basis?.replaceAll("_", " ")}\n${c.due_recorded + c.due_inferred} due instruments\nClick to prepare conversation`;
@@ -285,10 +297,10 @@ export function OpportunityDashboard() {
               style: {
                 fill: c.color,
                 opacity: !data.selected_cluster
-                  ? 0.20
+                  ? 0.2
                   : data.selected_cluster === c.id
                     ? 0.32
-                    : 0.10,
+                    : 0.1,
                 stroke: c.color,
                 lineWidth: data.selected_cluster === c.id ? 2 : 1,
               },
@@ -708,10 +720,26 @@ export function OpportunityDashboard() {
                         <small>rule score / 100</small>
                         {p.priority_components &&
                           Object.keys(p.priority_components).length > 0 && (
-                            <InfoHint label={`priority breakdown for ${p.display_name}`}>
-                              {`Score parts (0–1, null means no evidence): ${Object.entries(p.priority_components)
-                                .map(([k, v]) => `${k.replace(/_/g, " ")} ${v == null ? "—" : (v as number).toFixed(2)}`)
-                                .join(" · ")}. Weights${data?.ranking_weights ? ` (${Object.entries(data.ranking_weights).map(([k, w]) => `${k.replace(/_/g, " ")} ${Math.round((w as number) * 100)}%`).join(", ")})` : ""} are business assumptions, not measured prices; expected value is priority points, never euros.`}
+                            <InfoHint
+                              label={`priority breakdown for ${p.display_name}`}
+                            >
+                              {`Score parts (0–1, null means no evidence): ${Object.entries(
+                                p.priority_components,
+                              )
+                                .map(
+                                  ([k, v]) =>
+                                    `${k.replace(/_/g, " ")} ${v == null ? "—" : (v as number).toFixed(2)}`,
+                                )
+                                .join(" · ")}. Weights${
+                                data?.ranking_weights
+                                  ? ` (${Object.entries(data.ranking_weights)
+                                      .map(
+                                        ([k, w]) =>
+                                          `${k.replace(/_/g, " ")} ${Math.round((w as number) * 100)}%`,
+                                      )
+                                      .join(", ")})`
+                                  : ""
+                              } are business assumptions, not measured prices; expected value is priority points, never euros.`}
                             </InfoHint>
                           )}
                       </td>
@@ -814,12 +842,6 @@ export function OpportunityDashboard() {
               </details>
             )}
           </Card>
-          {s.artifacts.map((a) => (
-            <Card key={a.id}>
-              <h2>{a.title}</h2>
-              <ArtifactChart artifact={a} />
-            </Card>
-          ))}
         </div>
       )}
       {s.opportunityDrawerId && (
