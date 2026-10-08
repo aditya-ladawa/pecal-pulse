@@ -1,42 +1,105 @@
-"use client";
 import Link from "next/link";
-import PredictiveArcSignal from "./PredictiveArcSignal";
+import { ArrowRight, Bell, TrendingUp, UsersRound } from "lucide-react";
+import { LandingSignal } from "./LandingSignal";
+
+const features = [
+  {
+    title: "Segmentation",
+    description: "Find and prioritize the most relevant customers.",
+    icon: UsersRound,
+  },
+  {
+    title: "Forecasting",
+    description: "Understand future calibration activity and expected volume.",
+    icon: TrendingUp,
+  },
+  {
+    title: "Signals",
+    description: "Spot unusual inactivity and services worth discussing.",
+    icon: Bell,
+  },
+];
 
 export function LandingPage() {
   return (
     <div className="landing-shell">
-      <div className="landing-accent" aria-hidden="true" />
-      <div className="landing-canvas" aria-hidden="true">
-        <PredictiveArcSignal
-          background="#ffffff"
-          baseColor="#274c67"
-          accentColor="#2a5c80"
-          highlight="#ff6f00"
-          density={110}
-          dotSize={130}
-          speed={45}
-          hover={100}
-          signal={{
-            level: 50,
-            amplitude: 30,
-            thickness: 95,
-            wavelength: 72,
-          }}
-        />
-      </div>
-      <div className="landing-content">
-        <div className="landing-title-block">
-          <h1>Perschmann Hack</h1>
-          <p>
-            Know which customer to contact next, why now, and what to ask.
-          </p>
-        </div>
-        <div className="landing-action">
-          <Link href="/dashboard" className="landing-dashboard-button">
-            Dashboard
+      <header className="landing-header landing-container">
+        <Link
+          href="/"
+          className="landing-brand"
+          aria-label="Perschmann Hack home"
+        >
+          Perschmann Hack
+        </Link>
+        <nav className="landing-nav" aria-label="Landing page navigation">
+          <a href="#product">Product</a>
+          <Link href="/customers">Use Cases</Link>
+          <a href="#about">About</a>
+          <Link href="/dashboard" className="landing-nav-button">
+            Open Dashboard
           </Link>
-        </div>
-      </div>
+        </nav>
+      </header>
+      <main>
+        <section className="landing-hero" aria-labelledby="landing-heading">
+          <LandingSignal />
+          <div className="landing-container landing-hero-inner">
+            <div className="landing-copy">
+              <p className="landing-eyebrow">Data-driven sales intelligence</p>
+              <h1 id="landing-heading">Perschmann Hack</h1>
+              <h2>
+                Know which customer to contact next,
+                <br className="landing-desktop-break" /> why now, and what to
+                ask.
+              </h2>
+              <p className="landing-description" id="about">
+                Perschmann Hack helps sales teams turn data into
+                <br className="landing-desktop-break" /> meaningful
+                conversations and more opportunities.
+              </p>
+              <div className="landing-actions">
+                <Link
+                  href="/dashboard"
+                  className="landing-button landing-button-primary"
+                >
+                  Open Dashboard <ArrowRight size={23} aria-hidden="true" />
+                </Link>
+                <Link
+                  href="/insights"
+                  className="landing-button landing-button-secondary"
+                >
+                  View Insights <ArrowRight size={23} aria-hidden="true" />
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+        <section
+          className="landing-features landing-container"
+          id="product"
+          aria-labelledby="landing-features-heading"
+        >
+          <p className="landing-eyebrow">Key features</p>
+          <h2 id="landing-features-heading">
+            Turn data into your next best conversation
+          </h2>
+          <div className="landing-feature-grid">
+            {features.map(({ title, description, icon: Icon }) => (
+              <article className="landing-feature-card" key={title}>
+                <span
+                  className={`landing-feature-icon${title === "Signals" ? " landing-feature-icon-orange" : ""}`}
+                >
+                  <Icon size={32} strokeWidth={2.2} aria-hidden="true" />
+                </span>
+                <div>
+                  <h3>{title}</h3>
+                  <p>{description}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      </main>
     </div>
   );
 }
