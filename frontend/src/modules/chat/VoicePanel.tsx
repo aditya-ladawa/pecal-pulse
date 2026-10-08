@@ -1,21 +1,14 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useAui, useAuiState } from "@assistant-ui/react";
+import { RoomAudioRenderer, RoomContext } from "@livekit/components-react";
 import { Square, Volume2 } from "lucide-react";
 import { ParticlesOrb } from "@/components/voiceorb/particles-orb";
+import { createLiveKitAdapter } from "@/components/voiceorb/create-livekit-adapter";
 import type { OrbState } from "@/components/voiceorb/orb-state";
 import { useSalesStore } from "@/modules/sales/store";
-import { captureVoice } from "./voice-capture";
-import { VoicePlayback } from "./voice-playback";
+import { LiveKitVoice } from "./voice-livekit";
 
-async function voiceError(response: Response) {
-  const data = await response.json().catch(() => null);
-  return new Error(
-    typeof data?.detail === "string"
-      ? data.detail
-      : "Voice is unavailable. Try again.",
-  );
-}
 export function VoicePanel() {
   const aui = useAui();
   const running = useAuiState((s) => s.thread.isRunning);
@@ -26,184 +19,157 @@ export function VoicePanel() {
         .slice()
         .reverse()
         .find(
-          (message) =>
-            message.role === "assistant" &&
-            message.status?.type !== "running" &&
-            message.text.trim(),
+          (m) =>
+            m.role === "assistant" &&
+            m.status?.type !== "running" &&
+            m.text.trim(),
         )?.text,
   );
-  const replayText = response?.text || savedReply;
   const chatReady = useSalesStore(
     (s) =>
       s.apiStatus === "connected" && s.chatStatus?.configured && !s.chatLoading,
   );
   const [configured, setConfigured] = useState(false);
   const [state, setState] = useState<OrbState>("idle");
+  const [speaking, setSpeaking] = useState(false);
   const [error, setError] = useState("");
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [deviceId, setDeviceId] = useState("");
   const [microphone, setMicrophone] = useState("");
-  const [hasSound, setHasSound] = useState(false);
-  const level = useRef(0);
-  const capture = useRef<Awaited<ReturnType<typeof captureVoice>> | null>(null);
-  const request = useRef<AbortController | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [voice, setVoice] = useState<LiveKitVoice | null>(null);
+  const [adapter, setAdapter] = useState<ReturnType<
+    typeof createLiveKitAdapter
+  > | null>(null);
+  const mounted = useRef(false);
   const generation = useRef(0);
-  const seen = useRef(response?.id);
-  const mounted = useRef(true);
   const spaceHeld = useRef(false);
-  const playback = useRef<VoicePlayback | null>(null);
-  if (!playback.current)
-    playback.current = new VoicePlayback({
-      synthesize: async (text, signal) => {
-        const result = await fetch("/api/sales/voice/speak", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text }),
-          signal,
-        });
-        if (!result.ok) throw await voiceError(result);
-        return result.arrayBuffer();
-      },
-      onState: (value) => {
-        if (mounted.current) {
-          setState(value);
-          if (value === "speaking") setError("");
-        }
-      },
-      onError: (message) => {
-        if (mounted.current) setError(message);
-      },
-    });
-  const cleanup = () => {
-    generation.current++;
-    request.current?.abort();
-    request.current = null;
-    capture.current?.cancel();
-    capture.current = null;
-    if (timer.current) clearTimeout(timer.current);
-    playback.current?.cancel();
-  };
+  const listening = useRef(false);
+  const seen = useRef(response?.id);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     mounted.current = true;
+    const client = new LiveKitVoice({
+      onSpeaking: (value) => {
+        if (mounted.current) setSpeaking(value);
+      },
+      onError: (message) => {
+        if (mounted.current) {
+          setError(message);
+          setState("error");
+        }
+      },
+    });
+    const meter = createLiveKitAdapter();
+    setVoice(client);
+    setAdapter(meter);
     const abort = new AbortController();
     fetch("/api/sales/voice/status", { signal: abort.signal })
       .then((r) => r.json())
       .then((s) => {
         setConfigured(s.configured);
-        if (!s.configured) setError("Add GRADIUM_API_KEY to enable voice.");
+        if (!s.configured)
+          setError("Configure LiveKit in the root .env to enable voice.");
       })
       .catch(() => {
         if (!abort.signal.aborted) setError("Voice backend unavailable.");
       });
     return () => {
       mounted.current = false;
+      generation.current++;
       abort.abort();
-      cleanup();
-      playback.current?.close();
+      if (timer.current) clearTimeout(timer.current);
+      meter.dispose();
+      client.close();
     };
   }, []);
+
   useEffect(() => {
-    if (!response || seen.current === response.id) return;
+    if (!voice || !response || seen.current === response.id) return;
     seen.current = response.id;
-    playback.current?.enqueue(response);
-  }, [response]);
+    // LiveKit already speaks one immediate acknowledgement. Tool narration stays text-only.
+    if (response.kind === "progress") return;
+    void voice.speak(response.text).catch((e) => {
+      if (mounted.current) setError(e.message || "Could not speak this reply.");
+    });
+  }, [response, voice]);
+
+  const cancel = () => {
+    generation.current++;
+    spaceHeld.current = false;
+    listening.current = false;
+    if (timer.current) clearTimeout(timer.current);
+    adapter?.setTrack();
+    void voice?.cancel();
+    if (running) aui.thread.cancelRun();
+    setSpeaking(false);
+    setState("idle");
+  };
   const submit = async () => {
     spaceHeld.current = false;
-    if (!capture.current) return;
+    if (!voice || !listening.current) return;
+    listening.current = false;
     if (timer.current) clearTimeout(timer.current);
-    const recording = capture.current;
-    capture.current = null;
-    const epoch = generation.current;
-    const abort = new AbortController();
-    request.current = abort;
+    adapter?.setTrack();
     setState("connecting");
+    const epoch = generation.current;
     try {
-      const audio = recording.stop();
-      const result = await fetch("/api/sales/voice/transcribe", {
-        method: "POST",
-        body: audio,
-        headers: { "Content-Type": "audio/wav" },
-        signal: abort.signal,
-      });
-      if (!result.ok) throw await voiceError(result);
-      const { text } = await result.json();
-      if (!mounted.current || epoch !== generation.current) return;
-      useSalesStore.getState().set({ voiceInputPending: true });
+      const text = await voice.finish();
+      if (!text || !mounted.current || epoch !== generation.current) return;
       setState("idle");
+      useSalesStore.getState().set({ voiceInputPending: true });
       await aui.thread.append({
         role: "user",
         content: [{ type: "text", text }],
       });
     } catch (e) {
-      if (!abort.signal.aborted && mounted.current) {
-        const message = e instanceof Error ? e.message : "Voice failed.";
+      if (mounted.current && epoch === generation.current) {
         setError(
-          message.startsWith("No speech detected")
-            ? "Audio was captured, but no words were recognized. Try another microphone or speak more clearly after Listening appears."
-            : message,
+          e instanceof Error ? e.message : "Could not transcribe speech.",
         );
         setState("error");
       }
     }
   };
-  const tap = async () => {
-    if (state === "listening") {
-      await submit();
-      return;
-    }
-    if (running || state === "speaking" || state === "connecting") {
-      cleanup();
-      if (running) aui.thread.cancelRun();
-      setState("idle");
-      return;
-    }
-    cleanup();
+  const start = async () => {
+    if (!voice) return;
+    // A new spoken turn interrupts both audio and the running LangGraph turn.
+    if (running) aui.thread.cancelRun();
     setError("");
-    setHasSound(false);
     setState("connecting");
-    const epoch = generation.current;
+    setSpeaking(false);
+    const epoch = ++generation.current;
     try {
-      await playback.current?.unlock();
-      if (!mounted.current || epoch !== generation.current) return;
-      const recording = await captureVoice({
-        deviceId,
-        onLevel: (value) => {
-          level.current = value;
-          if (value > 0.001 && mounted.current && epoch === generation.current)
-            setHasSound(true);
-        },
-        onDevice: (device) => {
-          if (mounted.current && epoch === generation.current)
-            setMicrophone(device.label);
-        },
-      });
-      if (!mounted.current || epoch !== generation.current) {
-        recording.cancel();
+      if (
+        !(await voice.start(deviceId)) ||
+        !mounted.current ||
+        epoch !== generation.current
+      )
         return;
-      }
-      capture.current = recording;
+      listening.current = true;
       setState("listening");
-      void navigator.mediaDevices
-        .enumerateDevices()
-        .then((available) => {
-          if (mounted.current && epoch === generation.current)
-            setDevices(
-              available.filter((device) => device.kind === "audioinput"),
-            );
-        })
-        .catch(() => {});
+      adapter?.setTrack({ publication: voice.microphone() });
+      setMicrophone(
+        voice.microphone()?.track?.mediaStreamTrack.label || "Microphone",
+      );
+      setDevices(
+        (await navigator.mediaDevices.enumerateDevices()).filter(
+          (d) => d.kind === "audioinput",
+        ),
+      );
       timer.current = setTimeout(() => void submit(), 44000);
     } catch (e) {
       if (mounted.current && epoch === generation.current) {
-        setError(
-          e instanceof Error && e.name === "NotAllowedError"
-            ? "Microphone permission is needed to speak."
-            : "Could not start the microphone. Please try again.",
-        );
+        void voice.cancel();
+        setError(e instanceof Error ? e.message : "Could not start voice.");
         setState("error");
       }
     }
+  };
+  const tap = () => {
+    if (listening.current) void submit();
+    else if (running || speaking || state === "connecting") cancel();
+    else void start();
   };
   useEffect(() => {
     const editable = (target: EventTarget | null) =>
@@ -219,37 +185,31 @@ export function VoicePanel() {
         editable(event.target) ||
         event.altKey ||
         event.ctrlKey ||
-        event.metaKey
+        event.metaKey ||
+        !configured ||
+        !chatReady
       )
         return;
-      if (!configured || !chatReady) return;
       event.preventDefault();
       if (
         event.repeat ||
         spaceHeld.current ||
-        running ||
-        (state !== "idle" && state !== "error")
+        listening.current ||
+        state === "connecting"
       )
         return;
       spaceHeld.current = true;
-      void tap();
+      void start();
     };
     const up = (event: KeyboardEvent) => {
       if (event.code !== "Space" || !spaceHeld.current) return;
       event.preventDefault();
       spaceHeld.current = false;
-      if (capture.current) void submit();
-      else {
-        // Release during permission/setup: discard any recording that resolves later.
-        cleanup();
-        setState("idle");
-      }
+      if (listening.current) void submit();
+      else cancel();
     };
     const blur = () => {
-      if (!spaceHeld.current) return;
-      spaceHeld.current = false;
-      cleanup();
-      setState("idle");
+      if (spaceHeld.current) cancel();
     };
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
@@ -261,103 +221,94 @@ export function VoicePanel() {
     };
   });
   const displayed =
-    state === "speaking" ? "speaking" : running ? "thinking" : state;
-  const label = running
-    ? "Stop response"
-    : state === "listening"
-      ? "Send voice request"
-      : state === "speaking"
-        ? "Stop speaking"
-        : state === "connecting"
-          ? "Cancel voice request"
-          : "Start voice request";
+    state === "listening"
+      ? "listening"
+      : speaking
+        ? "speaking"
+        : running
+          ? "thinking"
+          : state;
+  const active =
+    listening.current || speaking || running || state === "connecting";
   return (
     <div className="voice-panel">
+      {voice && (
+        <RoomContext.Provider value={voice.room}>
+          <RoomAudioRenderer />
+        </RoomContext.Provider>
+      )}
       <button
         className="voice-orb-button"
-        aria-label={label}
+        aria-label={
+          listening.current
+            ? "Send voice request"
+            : active
+              ? "Stop response"
+              : "Start voice request"
+        }
         aria-keyshortcuts="Space"
-        title="Hold Space to record; release to send. Or tap to start/stop."
+        title="Hold Space to speak; release to send. Or tap."
         aria-pressed={state === "listening"}
         disabled={!configured || !chatReady}
-        onClick={() => void tap()}
+        onClick={tap}
       >
         <ParticlesOrb
           state={!configured || !chatReady ? "disabled" : displayed}
-          levelRef={state === "listening" ? level : undefined}
+          levelRef={state === "listening" ? adapter?.levelRef : undefined}
           size={120}
           colorFrom="#274c67"
           colorTo="#ff6f00"
           label={displayed}
         />
-        <span className="voice-orb-icon">
-          {running ||
-          state === "listening" ||
-          state === "speaking" ||
-          state === "connecting" ? (
-            <Square size={17} />
-          ) : null}
-        </span>
+        <span className="voice-orb-icon">{active && <Square size={17} />}</span>
       </button>
       <span className="voice-status" role="status">
-        {state === "speaking"
-          ? "Speaking · tap to stop"
-          : running
-            ? "Working…"
-            : state === "listening"
-              ? !hasSound
-                ? "Listening · waiting for microphone sound"
-                : spaceHeld.current
-                  ? "Listening · release Space to send"
-                  : "Listening · tap to send"
+        {state === "listening"
+          ? spaceHeld.current
+            ? "Listening · release Space to send"
+            : "Listening · tap to send"
+          : speaking
+            ? "Speaking · tap to stop"
+            : running
+              ? "Working…"
               : state === "connecting"
                 ? "Connecting…"
                 : "Hold Space to speak · or tap"}
       </span>
-      {
-        <button
-          className="icon-button"
-          aria-label={replayText ? "Hear latest reply" : "Test speaker"}
-          title={replayText ? "Hear latest reply" : "Test speaker"}
-          disabled={!configured || state === "listening"}
-          onClick={() => {
-            setError("");
-            playback.current?.cancel();
-            void playback.current
-              ?.unlock()
-              .then(() =>
-                playback.current?.enqueue({
-                  text: replayText || "Pulse is ready. You can speak now.",
-                  kind: "final",
-                }),
-              )
-              .catch(() =>
-                setError(
-                  "Audio is blocked. Check the browser's site sound permission.",
-                ),
-              );
-          }}
-        >
-          <Volume2 size={17} />
-        </button>
-      }
+      <button
+        className="icon-button"
+        aria-label={savedReply ? "Hear latest reply" : "Test speaker"}
+        title={savedReply ? "Hear latest reply" : "Test speaker"}
+        disabled={
+          !configured ||
+          state === "listening" ||
+          state === "connecting" ||
+          running
+        }
+        onClick={() => {
+          setError("");
+          void voice
+            ?.speak(savedReply || "Pulse is ready. You can speak now.", true)
+            .catch((e) => setError(e.message || "Could not play speech."));
+        }}
+      >
+        <Volume2 size={17} />
+      </button>
       {microphone &&
         (devices.length > 1 ? (
           <select
             className="voice-input-select"
             aria-label="Microphone input"
             value={deviceId}
-            disabled={
-              state === "listening" || state === "connecting" || running
-            }
-            onChange={(event) => setDeviceId(event.target.value)}
+            disabled={active}
+            onChange={(e) => setDeviceId(e.target.value)}
           >
             <option value="">Default · {microphone}</option>
             {devices
-              .filter((device) => device.deviceId !== "default")
-              .map((device) => (
-                <option key={device.deviceId} value={device.deviceId}>
-                  {device.label || "Microphone"}
+              .filter((d) => d.deviceId !== "default")
+              .map((d) => (
+                <option key={d.deviceId} value={d.deviceId}>
+                  {d.label || "Microphone"}
                 </option>
               ))}
           </select>

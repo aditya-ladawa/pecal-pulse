@@ -13,8 +13,10 @@
   "dependencies": {
     "@assistant-ui/react": "0.15.21",
     "@assistant-ui/react-markdown": "0.14.16",
+    "@livekit/components-react": "^2.9.24",
     "echarts": "5.6.0",
     "eventsource-parser": "^4.1.1",
+    "livekit-client": "^2.22.3",
     "lucide-react": "1.47.0",
     "motion": "^11.18.2",
     "next": "15.5.25",
