@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import type { EChartsOption } from "echarts";
 import { ArrowUpRight, Download, Save, X } from "lucide-react";
 import { Card, InfoHint } from "@/components/ui/Primitives";
-import { Chart, ArtifactChart } from "@/modules/artifacts/Chart";
+import { axisNumber, Chart, ArtifactChart } from "@/modules/artifacts/Chart";
 import { useSalesStore } from "./store";
 import { request, getV2Detail, getV2Followups, patchV2Workflow } from "./api";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
@@ -247,6 +247,7 @@ export function OpportunityDashboard() {
           type: "value",
           min: -100,
           max: 100,
+          axisLabel: { formatter: axisNumber },
           name: "Relative action urgency →",
           nameLocation: "middle",
           nameGap: 40,
@@ -257,6 +258,7 @@ export function OpportunityDashboard() {
           type: "value",
           min: -100,
           max: 100,
+          axisLabel: { formatter: axisNumber },
           name: "Relative opportunity size",
           nameGap: 14,
           splitLine: { lineStyle: { color: "#e9eee5" } },

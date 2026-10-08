@@ -12,7 +12,7 @@ import {
   request,
 } from "./api";
 import { openCustomer, dispatchEvent } from "@/core/events/router";
-import { Chart, ArtifactChart } from "@/modules/artifacts/Chart";
+import { axisNumber, axisPercent, Chart, ArtifactChart } from "@/modules/artifacts/Chart";
 import { InstrumentTiming } from "./InstrumentTiming";
 import { Card, InfoHint } from "@/components/ui/Primitives";
 import type { Bootstrap, Detail, InsightsEvidence } from "@/types/sales-v2";
@@ -499,12 +499,6 @@ function InsightsView({
     }))
     .sort((a, b) => b.higher + b.moderate - (a.higher + a.moderate))
     .slice(0, 10);
-  const segmentRows = Object.entries(volume?.segment_test ?? {}).map(([id, v]) => ({
-    id,
-    label: v.label || id,
-    wape: v.wape,
-    n: v.n || 0,
-  }));
   const challengerRows = Object.entries(volume?.challengers ?? {}).map(([method, stages]) => ({
     method,
     validationMae: stages.validation?.mae,
@@ -512,6 +506,21 @@ function InsightsView({
     testWape: stages.test?.wape,
   }));
   const tiers = retention?.tier_distribution_at_reference ?? {};
+  const sectorTotals =
+    sectors?.history.map((h) => ({
+      label: h.label,
+      total: h.monthly.reduce((sum, p) => sum + p.calibration_events, 0),
+    })) ?? [];
+  const sectorSum = sectorTotals.reduce((sum, r) => sum + r.total, 0);
+  const pieRows = sectorTotals
+    .filter((r) => r.total > 0)
+    .map((r) => ({ ...r, share: sectorSum ? r.total / sectorSum : 0 }))
+    .sort((a, b) => b.total - a.total);
+  const pieWindow = sectors?.history[0]?.monthly.length
+    ? `${sectors.history[0].monthly[0].month}–${
+        sectors.history[0].monthly[sectors.history[0].monthly.length - 1].month
+      }`
+    : "";
   return (
     <>
       <Heading title="Insights" text="Where the work is coming from, where risk sits, and how far to trust the numbers" />
@@ -547,7 +556,7 @@ function InsightsView({
                 data: industryRows.map((r) => r.label),
                 axisLabel: { rotate: 32, fontSize: 9, interval: 0 },
               },
-              yAxis: { type: "value", name: "Expected calibrations" },
+              yAxis: { type: "value", name: "Expected calibrations", axisLabel: { formatter: axisNumber } },
               series: [
                 {
                   name: "Expected calibrations",
@@ -586,7 +595,7 @@ function InsightsView({
                 data: riskRows.map((r) => r.label),
                 axisLabel: { rotate: 32, fontSize: 9, interval: 0 },
               },
-              yAxis: { type: "value", name: "Accounts" },
+              yAxis: { type: "value", name: "Accounts", axisLabel: { formatter: axisNumber } },
               series: [
                 { name: "Higher risk", type: "bar", stack: "risk", data: riskRows.map((r) => r.higher) },
                 { name: "Moderate risk", type: "bar", stack: "risk", data: riskRows.map((r) => r.moderate) },
@@ -598,55 +607,6 @@ function InsightsView({
           <p>Retention tiers unavailable for this snapshot.</p>
         )}
       </Card>
-      <div className="integrated-charts">
-        <Card>
-          <div className="card-heading">
-            <h2>Where the forecast is trustworthy</h2>
-            <InfoHint label="forecast reliability by behavior group">
-              Holdout error of the served volume baseline per behavior group:
-              aggregate absolute error over aggregate actual volume. Steady
-              high-volume accounts forecast far better than occasional ones.
-            </InfoHint>
-          </div>
-          {segmentRows.length ? (
-            <Chart
-              label="Holdout forecast error by customer behavior group"
-              height={320}
-              option={{
-                tooltip: {
-                  trigger: "axis",
-                  formatter: (p) => {
-                    const row = segmentRows[(p as { dataIndex: number }[])[0]?.dataIndex];
-                    return row
-                      ? `${row.label}<br/>WAPE ${row.wape == null ? "unavailable" : `${(row.wape * 100).toFixed(0)}%`} · ${row.n.toLocaleString()} past windows`
-                      : "";
-                  },
-                },
-                grid: { left: 150, right: 20, bottom: 35, top: 20 },
-                xAxis: {
-                  type: "value",
-                  name: "WAPE",
-                  axisLabel: { formatter: (v: number) => `${Math.round(v * 100)}%` },
-                },
-                yAxis: {
-                  type: "category",
-                  data: segmentRows.map((r) => r.label),
-                  axisLabel: { fontSize: 10 },
-                },
-                series: [
-                  {
-                    name: "Holdout WAPE",
-                    type: "bar",
-                    data: segmentRows.map((r) => (r.wape == null ? null : Number(r.wape.toFixed(3)))),
-                  },
-                ],
-              }}
-            />
-          ) : (
-            <p>Segment reliability unavailable for this snapshot.</p>
-          )}
-        </Card>
-      </div>
       <div className="integrated-charts">
         <Card>
           <div className="card-heading">
@@ -678,7 +638,7 @@ function InsightsView({
                   name: "Returned",
                   min: 0,
                   max: 1,
-                  axisLabel: { formatter: (v: number) => `${Math.round(v * 100)}%` },
+                  axisLabel: { formatter: (v: number) => `${axisPercent(v)}` },
                 },
                 series: (["regular", "irregular"] as const)
                   .filter((k) => retention.forward_curve[k]?.length)
@@ -751,26 +711,44 @@ function InsightsView({
       </div>
       <div className="integrated-charts">
         <Card>
-          <h2>Sector activity</h2>
+          <div className="card-heading">
+            <h2>Where the calibration work comes from</h2>
+            <InfoHint label="share of calibrations by industry">
+              Share of observed calibration events per industry over the
+              sector history window. Descriptive history, not a forecast and
+              not revenue.
+            </InfoHint>
+          </div>
           {sectors?.history.length ? (
             <Chart
-              label="Observed monthly calibration events by sector"
-              height={310}
+              label="Share of observed calibrations by industry over the sector window"
+              height={330}
               option={{
-                tooltip: { trigger: "axis" },
-                legend: { type: "scroll" },
-                grid: { left: 55, right: 20, bottom: 35, top: 50 },
-                xAxis: {
-                  type: "category",
-                  data: sectors.history[0].monthly.map((p) => p.month),
+                tooltip: {
+                  trigger: "item",
+                  formatter: (p) => {
+                    const row = pieRows[(p as { dataIndex: number }).dataIndex];
+                    return row
+                      ? `${row.label}<br/>${row.total.toLocaleString()} calibrations · ${axisPercent(row.share)} of total`
+                      : "";
+                  },
                 },
-                yAxis: { type: "value", name: "Calibrations" },
-                series: sectors.history.map((h) => ({
-                  name: h.label,
-                  type: "line",
-                  showSymbol: false,
-                  data: h.monthly.map((p) => p.calibration_events),
-                })),
+                legend: { type: "scroll", bottom: 0, textStyle: { fontSize: 10 } },
+                series: [
+                  {
+                    name: "Calibration share",
+                    type: "pie",
+                    radius: ["42%", "68%"],
+                    center: ["50%", "45%"],
+                    avoidLabelOverlap: true,
+                    label: {
+                      show: true,
+                      formatter: (p) => axisPercent((Number(p.percent) || 0) / 100),
+                    },
+                    labelLine: { length: 8, length2: 8 },
+                    data: pieRows.map((r) => ({ name: r.label, value: r.total })),
+                  },
+                ],
               }}
             />
           ) : (
@@ -779,6 +757,10 @@ function InsightsView({
               {boot.metadata.modules.sectors?.reason}
             </p>
           )}
+          <small>
+            {pieWindow} · {sectors?.history.length} industries · observed
+            calibration events, not orders or revenue.
+          </small>
         </Card>
         {sectors && (
           <Card>
@@ -1111,7 +1093,7 @@ export function CustomerEvidence({
                     ...futureMonths,
                   ],
                 },
-                yAxis: { type: "value", min: 0, minInterval: 1 },
+                yAxis: { type: "value", min: 0, minInterval: 1, axisLabel: { formatter: axisNumber } },
                 series: [
                   {
                     name: "Completed calibrations",
