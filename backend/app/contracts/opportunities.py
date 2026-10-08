@@ -39,6 +39,7 @@ class OpportunityPoint(StrictModel):
     forecast_start: str | None = None
     forecast_end: str | None = None
     priority_score: float = Field(ge=0, le=100)
+    priority_components: dict[str, float | None] = Field(default_factory=dict)
     reasons: list[str]
     reason_types: list[str]
     next_action: str
@@ -65,6 +66,8 @@ class CohortMetric(StrictModel):
 class OpportunityResponse(StrictModel):
     metadata: ResponseMetadata
     rule_version: str
+    ranking_version: str = "rank-v2"
+    ranking_weights: dict[str, float] = Field(default_factory=dict)
     model_version: str
     selection_revision: str
     filters: OpportunityFilters

@@ -22,6 +22,43 @@ from ...contracts import sales_v2 as v2
 WORKFLOW_TODAY = os.getenv("PECAL_TODAY", "2026-10-07")
 
 
+def _max_expected_value(snapshot_id: str, snapshot: dict) -> float | None:
+    """Snapshot maximum of P(activity) × expected volume × unit value.
+
+    None when analytics predictions are unavailable: the expected-value
+    ranking component then stays null instead of scoring blind.
+    """
+    from ..insights.value_weights import load_weights, unit_value
+
+    try:
+        analytics = _analytics_for_snapshot(snapshot)
+        weights = load_weights()
+        best = 0.0
+        groups: dict[str, set[str]] = {}
+        for req in snapshot["requirements"]:
+            if req.group_id and req.stopped is not True and req.eligibility != "excluded":
+                groups.setdefault(req.customer_id, set()).add(req.group_id)
+        for profile in snapshot["profiles"]:
+            prediction = analytics.prediction(profile.customer_id)
+            if prediction is None:
+                continue
+            prob = prediction.activity.probability
+            expected = prediction.calibration_volume.expected_total
+            if (
+                prob is None
+                or expected is None
+                or prediction.activity.support.status != "supported"
+                or prediction.calibration_volume.support.status != "supported"
+            ):
+                continue
+            owned = groups.get(profile.customer_id, set())
+            unit = sum(unit_value(g, weights) for g in owned) / len(owned) if owned else 1.0
+            best = max(best, prob * expected * unit)
+        return best if best > 0 else None
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
 def _suppressed_ids(state: v2.AccountWorkflow, today: str) -> set[str]:
     suppressed = set()
     for record in state.suppressions:
@@ -60,6 +97,7 @@ def snapshot_stats(snapshot_id: str) -> _insights.SnapshotStats:
         max_instruments_per_account=max(counts + [1]),
         max_calibration_events_3m=max(list(volume_3m.values()) + [1.0]),
         p90_instruments_per_account=float(p90 or 1),
+        max_expected_value=_max_expected_value(snapshot_id, snapshot),
     )
     return snapshot["_ranking_stats"]
 

@@ -6,12 +6,18 @@ reason with deduplicated instrument quantities. Stop / resolution / snooze
 rules apply *before* ranking; missing live checks yield
 ``review_required``, never outreach-ready.
 
-Priority components (default weights 35/30/20/15 — business assumptions,
+Priority components (default weights 30/25/15/15/15 — business assumptions,
 not ML-derived commercial value) are normalized against a frozen snapshot
 (``SnapshotStats``) so scores are comparable within one snapshot. Missing
 components stay explicit ``null`` and contribute 0 to the score (absent
 data is never scored as strong evidence). Ranking is deterministic: score
 desc, then customer_id asc, then reason id asc.
+
+The ``expected_value`` component is P(activity) × expected 3-month volume ×
+the account's relative unit value, normalized by the snapshot maximum. Unit
+values default to 1.0 per equipment group (pure volume ranking) unless
+sales supplies relative weights; scores are therefore priority points,
+never euros.
 """
 
 from __future__ import annotations
@@ -28,13 +34,15 @@ from .models import (
     PeerOpportunity,
     Requirement,
 )
+from .value_weights import load_weights, unit_value
 
-RANKING_VERSION = "rank-v1"
+RANKING_VERSION = "rank-v2"
 DEFAULT_WEIGHTS = {
-    "timing": 0.35,
-    "quantity": 0.30,
-    "activity_deviation": 0.20,
+    "timing": 0.30,
+    "quantity": 0.25,
+    "activity_deviation": 0.15,
     "evidence": 0.15,
+    "expected_value": 0.15,
 }
 
 EVIDENCE_BY_REQUIREMENT_KIND = {
@@ -59,6 +67,9 @@ class SnapshotStats(BaseModel):
     max_instruments_per_account: int = 1
     max_calibration_events_3m: float = 1.0
     p90_instruments_per_account: float = 1.0
+    # Snapshot maximum of P(activity) × expected 3-month volume × unit
+    # value; None when analytics predictions are unavailable (mock mode).
+    max_expected_value: float | None = None
 
 
 def _parse_day(value: str | None) -> date | None:
@@ -371,6 +382,44 @@ def evidence_component(
     return max(scores)
 
 
+def account_unit_value(
+    requirements: list[Requirement],
+    weights: dict[str, float] | None = None,
+) -> float:
+    """Mean relative unit value over the account's supported requirement groups.
+
+    Falls back to 1.0 without grouped requirements: every calibration event
+    counts the same until sales supplies relative group values.
+    """
+    groups = {
+        r.group_id
+        for r in requirements
+        if r.group_id and r.stopped is not True and r.eligibility != "excluded"
+    }
+    if not groups:
+        return 1.0
+    return sum(unit_value(group, weights) for group in groups) / len(groups)
+
+
+def expected_value_component(
+    reason: ActionReason,
+    prediction: CustomerPrediction | None,
+    unit: float,
+    max_expected_value: float | None,
+) -> float | None:
+    """Normalized P(activity) × expected volume × unit value, upcoming only.
+
+    Inactivity/discovery carry no value claim (None, never zero-as-weak).
+    """
+    if reason.type != "upcoming" or prediction is None:
+        return None
+    prob = prediction.activity_probability
+    expected = prediction.expected_volume_3m
+    if prob is None or expected is None or not max_expected_value:
+        return None
+    return max(0.0, min(1.0, prob * expected * unit / max_expected_value))
+
+
 def score_reason(
     reason: ActionReason,
     *,
@@ -378,6 +427,7 @@ def score_reason(
     requirements_by_id: dict[str, Requirement],
     stats: SnapshotStats,
     weights: dict[str, float] | None = None,
+    unit_value_amount: float = 1.0,
 ) -> tuple[float, dict[str, float | None]]:
     """Return (score_0_100, components). Missing components → null, +0."""
     weights = weights or DEFAULT_WEIGHTS
@@ -386,6 +436,9 @@ def score_reason(
         "quantity": quantity_component(reason, stats),
         "activity_deviation": activity_deviation_component(reason, prediction),
         "evidence": evidence_component(reason, requirements_by_id),
+        "expected_value": expected_value_component(
+            reason, prediction, unit_value_amount, stats.max_expected_value
+        ),
     }
     total = 0.0
     for key, weight in weights.items():
@@ -428,6 +481,7 @@ def build_account_action(
     weights = weights or dict(DEFAULT_WEIGHTS)
     today = today or stats.reference_date
     requirements_by_id = {r.id: r for r in requirements}
+    unit = account_unit_value(requirements)
 
     reasons = (
         build_upcoming_reasons(
@@ -471,7 +525,7 @@ def build_account_action(
     scored = [
         (score_reason(r, prediction=prediction,
                       requirements_by_id=requirements_by_id,
-                      stats=stats, weights=weights), r)
+                      stats=stats, weights=weights, unit_value_amount=unit), r)
         for r in active
     ]
     # Deterministic: score desc, then reason id asc.
@@ -481,8 +535,8 @@ def build_account_action(
     # Account components: best available per dimension across reasons
     # (transparent: max evidence, not an average that hides the best lead).
     merged: dict[str, float | None] = {}
-    for key in ("timing", "quantity", "activity_deviation", "evidence"):
-        values = [s[1][key] for s, _ in scored if s[1][key] is not None]
+    for key in weights:
+        values = [s[1][key] for s, _ in scored if s[1].get(key) is not None]
         merged[key] = max(values) if values else None
     total = sum(
         weights[k] * merged[k] for k in weights if merged.get(k) is not None

@@ -135,7 +135,7 @@ class SharedShapeTests(unittest.TestCase):
         )
         self.assertEqual(
             sorted(payload["components"].keys()),
-            ["activity_deviation", "evidence", "quantity", "timing"],
+            ["activity_deviation", "evidence", "expected_value", "quantity", "timing"],
         )
         self.assertTrue(0 <= payload["priority_score"] <= 100)
 
