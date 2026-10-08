@@ -7,6 +7,7 @@ import { ParticlesOrb } from "@/components/voiceorb/particles-orb";
 import { createLiveKitAdapter } from "@/components/voiceorb/create-livekit-adapter";
 import type { OrbState } from "@/components/voiceorb/orb-state";
 import { useSalesStore } from "@/modules/sales/store";
+import { pickSpeakerOutput } from "./audio-output";
 import { LiveKitVoice } from "./voice-livekit";
 
 export function VoicePanel() {
@@ -51,7 +52,7 @@ export function VoicePanel() {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Speaker only; the microphone is always the laptop default. A saved
-  // speaker wins while plugged in, otherwise a lone extra output
+  // speaker wins while plugged in, otherwise a lone real output
   // (e.g. the SoundDrum Bluetooth speaker) is picked automatically.
   const refreshOutputs = useCallback(async () => {
     try {
@@ -61,13 +62,10 @@ export function VoicePanel() {
         (d) => d.kind === "audiooutput" && d.deviceId,
       );
       setOutputs(outs);
-      const saved = localStorage.getItem("pecal-voice-speaker") || "";
-      let spk = "";
-      if (saved && outs.some((d) => d.deviceId === saved)) spk = saved;
-      else {
-        const extras = outs.filter((d) => d.deviceId !== "default");
-        if (extras.length === 1) spk = extras[0].deviceId;
-      }
+      const spk = pickSpeakerOutput(
+        outs.map((d) => ({ deviceId: d.deviceId, label: d.label || "" })),
+        localStorage.getItem("pecal-voice-speaker") || "",
+      );
       setOutputId(spk);
       return spk;
     } catch {
