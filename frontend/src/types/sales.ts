@@ -54,6 +54,17 @@ export interface Followup {
   outcome: string;
   status: "open" | "done";
   source: "mock" | "manual";
+  email_draft?: {
+    subject: string;
+    body: string;
+    language: "en" | "de";
+    status: "draft";
+    snapshot_id: string;
+    reference_date: string;
+    reason_ids: string[];
+    review_notes: string[];
+  } | null;
+  request_key?: string | null;
 }
 export interface Workspace {
   mode: "mock";
@@ -94,12 +105,30 @@ export type UiCommand =
             value: "activity" | "portfolio" | "next-step";
             activity_view?: "monthly" | "quarter";
           }
-        | { control: "dashboard.action_limit"; value: 5 | 10 | 12 };
+        | { control: "dashboard.action_limit"; value: 5 | 10 | 12 }
+        | { control: "customers.view"; value: "accounts" | "follow-ups" }
+        | { control: "customers.offset" | "dashboard.offset"; value: number }
+        | { control: "dashboard.display_limit"; value: 100 | 200 | 500 | 1000 }
+        | { control: "dashboard.preview"; value: string | null };
     };
-export type DomainEvent = {
-  type: "followup.created" | "followup.updated";
-  payload: Followup;
-};
+export type DomainEvent =
+  | {
+      type: "followup.created" | "followup.updated";
+      payload: Followup;
+    }
+  | {
+      type: "accounts.assigned";
+      payload: { customer_ids: string[]; owner: string };
+    }
+  | {
+      type: "customer.workflow.updated";
+      payload: {
+        customer_id: string;
+        workflow: import("./sales-v2").Detail["workflow"];
+        action: import("./sales-v2").Action | null;
+        suppressed_requirement_ids: string[];
+      };
+    };
 export type EventEnvelope = (UiCommand | DomainEvent) & {
   id: string;
   timestamp: number;
@@ -140,6 +169,9 @@ export interface PageSnapshot {
   page: Page;
   title: string;
   metrics: PageMetric[];
+  sections?: string[];
+  visible_rows?: Record<string, unknown>[];
+  loading?: boolean;
 }
 export interface WorkspaceContext {
   opportunity_filters?: import("./opportunities").OpportunityFilters;
@@ -148,6 +180,11 @@ export interface WorkspaceContext {
   opportunity_selection_revision?: string;
   commercial_scenario?: import("./opportunities").CommercialScenario | null;
   customer_view?: "accounts" | "follow-ups";
+  customer_offset?: number;
+  dashboard_offset?: number;
+  opportunity_drawer_id?: string | null;
+  opportunity_display_limit?: number;
+  current_date?: string;
 
   page: Page;
   customer_id: string | null;

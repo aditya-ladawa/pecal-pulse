@@ -16,6 +16,11 @@ def emit(runtime, kind, payload):
     runtime.context.events.append(event)
     return {"status": "proposed", "event": event}
 
+def _task_summaries(sid):
+    rows = api_v2.list_followups(sid)["items"]
+    return {"total":len(rows), "items":[{**{k:r[k] for k in ("id","customer_id","customer_name","owner","due_date","status")},
+        "email_subject":(r.get("email_draft") or {}).get("subject")} for r in rows[:50]]}
+
 @tool
 def get_workspace_context(runtime: ToolRuntime[TurnContext]) -> dict:
     """Get current page, displayed metric labels/values/definitions, filters, accounts and controls."""
@@ -35,11 +40,15 @@ def get_workspace_context(runtime: ToolRuntime[TurnContext]) -> dict:
                     "industry": [{"value": i, "label": label} for i, label in sorted({(p.industry_id or "unknown", p.industry_label or "Unknown") for p in profiles})],
                     "segment": [{"value": s["id"], "label": s["label"]} for s in segments],
                     "action": ["all", "upcoming", "inactivity", "discovery"],
-                    "customer_tab": ["activity", "portfolio", "next-step"], "customer_activity_view": ["monthly", "quarter"], "action_limit": [5,10,12]},
-                "followups": api_v2.list_followups(sid)["items"] if workspace["page"] == "follow-ups" else [],
+                    "retention": ["all", "lower", "moderate", "higher"],
+                    "customer_view": ["accounts", "follow-ups"],
+                    "customer_tab": ["activity", "portfolio", "next-step"], "customer_activity_view": ["monthly", "quarter"], "action_limit": [5,10,12],
+                    "dashboard_display_limit": [100,200,500,1000], "pagination": "20 accounts per customer page; action_limit per dashboard page",
+                    "account_owner": "User-supplied teammate or team name (e.g. Team A); no authoritative directory exists"},
+                "followups": _task_summaries(sid) if workspace["page"] == "follow-ups" or (workspace["page"] == "customers" and workspace["customer_view"] == "follow-ups") else [],
                 "chart_views": ["industry", "activity", "portfolio", "sector_activity", "sector_outlook", "sector_correlation"],
                 "opportunities": _opportunity_summary(runtime) if workspace["page"] == "dashboard" else None,
-                "insights": {**api_v2.sectors(sid), **api_v2.model_report(sid)} if workspace["page"] == "insights" else None}
+                "insights": {**api_v2.sectors(sid), **api_v2.insights_evidence(sid)} if workspace["page"] == "insights" else None}
     return {**workspace, "data_mode": "mock", "source_reference_date": service.FIXTURE["reference_date"],
             "controls": {"pages": ["dashboard", "customers", "follow-ups", "insights"],
                          "industry": ["all", *service.FIXTURE["sector_labels"]],
@@ -51,13 +60,23 @@ def get_workspace_context(runtime: ToolRuntime[TurnContext]) -> dict:
             "chart_views": ["industry", "activity", "portfolio"]}
 
 @tool
-def list_customers(runtime: ToolRuntime[TurnContext], industry: str = "all", segment: str = "all", action: str = "all", query: str = "") -> dict:
-    """Search observed customers by exact industry/segment/action values or name/ID query."""
+def list_customers(runtime: ToolRuntime[TurnContext], industry: str | None = None, segment: str | None = None, action: str | None = None, retention: Literal["all", "lower", "moderate", "higher"] | None = None, query: str | None = None, offset: int | None = None) -> dict:
+    """Read up to 50 accounts, inheriting current CUSTOMER filters unless specified. Use all/empty query to reset. Retention tiers are review signals, not churn probabilities. Does not change the UI. Use get_opportunity_cohort for date-scoped Dashboard members."""
     runtime.context.consume()
+    current = runtime.context.workspace.filters
+    industry = industry if industry is not None else current.industry or "all"
+    segment = segment if segment is not None else current.segment or "all"
+    action = action if action is not None else current.action or "all"
+    retention = retention if retention is not None else current.retention or "all"
+    query = query if query is not None else current.query or ""
+    offset = runtime.context.workspace.customer_offset if offset is None else offset
+    if offset < 0:
+        raise ValueError("Offset must be nonnegative")
     if runtime.context.workspace.snapshot_id:
         result = api_v2.list_customers(snapshot_id=runtime.context.workspace.snapshot_id,
             industry_id=None if industry == "all" else industry, segment_id=None if segment == "all" else segment,
-            action=None if action == "all" else action, query=query, sort="priority", limit=50, offset=0)
+            action=None if action == "all" else action, retention=None if retention == "all" else retention,
+            query=query, sort="priority", limit=50, offset=offset)
         for item in result["items"]:
             action = item.get("primary_action")
             if action:
@@ -68,6 +87,50 @@ def list_customers(runtime: ToolRuntime[TurnContext], industry: str = "all", seg
     return {"source": "mock", "total": len(rows), "customers": [
         {k: c[k] for k in ("id", "name", "industry", "segment", "action", "priority", "reason")}
         for c in rows[:50]]}
+
+@tool
+def open_customer_preview(customer_id: str, runtime: ToolRuntime[TurnContext]) -> dict:
+    """Open a known account's Dashboard preparation drawer, keeping the opportunity filters/cluster. For Customers use select_customer. Does not alter workflow."""
+    runtime.context.consume()
+    if not runtime.context.workspace.snapshot_id:
+        raise ValueError("Customer preview requires the integrated workspace")
+    data.get_customer_detail(runtime.context.workspace.snapshot_id, customer_id)
+    runtime.context.workspace.customer_id = customer_id
+    runtime.context.workspace.opportunity_drawer_id = customer_id
+    runtime.context.workspace.customer_tab = "activity"
+    runtime.context.workspace.page = "dashboard"
+    runtime.context.workspace.page_snapshot = None
+    emit(runtime, "ui.control.set", {"control": "dashboard.preview", "value": customer_id})
+    return emit(runtime, "ui.navigate", {"page": "dashboard"})
+
+@tool
+def set_workspace_view(runtime: ToolRuntime[TurnContext], customer_view: Literal["accounts", "follow-ups"] | None = None,
+    customer_offset: int | None = None, dashboard_offset: int | None = None,
+    display_limit: Literal[100,200,500,1000] | None = None, close_preview: bool = False) -> dict:
+    """Switch Customers Accounts/Follow-ups, paginate either list (offset is zero-based), change Dashboard plotted sample, or close its preview. Sample never changes cohort totals. Opens Customers when customer_view supplied."""
+    runtime.context.consume()
+    w = runtime.context.workspace
+    if customer_offset is not None and (customer_offset < 0 or customer_offset % 20):
+        raise ValueError("Customer offset must be a nonnegative multiple of 20")
+    if dashboard_offset is not None and (dashboard_offset < 0 or dashboard_offset % w.action_limit):
+        raise ValueError("Dashboard offset must be a multiple of the current action limit")
+    commands = []
+    for control, value, field in (("customers.view",customer_view,"customer_view"),
+        ("customers.offset",customer_offset,"customer_offset"), ("dashboard.offset",dashboard_offset,"dashboard_offset"),
+        ("dashboard.display_limit",display_limit,"opportunity_display_limit")):
+        if value is not None:
+            setattr(w, field, value)
+            commands.append(emit(runtime, "ui.control.set", {"control":control,"value":value}))
+    if close_preview:
+        w.opportunity_drawer_id = None
+        commands.append(emit(runtime,"ui.control.set",{"control":"dashboard.preview","value":None}))
+    if customer_view is not None:
+        w.page = "customers"
+        commands.append(emit(runtime,"ui.navigate",{"page":"customers"}))
+    if not commands:
+        raise ValueError("Specify a view, pagination offset, display limit, or close_preview")
+    w.page_snapshot = None
+    return {"status":"proposed", "events":[c["event"] for c in commands]}
 
 @tool
 def get_customer_evidence(runtime: ToolRuntime[TurnContext], customer_id: str = "") -> dict:
@@ -113,6 +176,9 @@ def set_customer_filters(runtime: ToolRuntime[TurnContext], industry: str | None
     values = filters.model_dump(exclude_none=True)
     merged = {**runtime.context.workspace.filters.model_dump(), **values}
     runtime.context.workspace.filters = Filters(**merged)
+    runtime.context.workspace.customer_offset = 0
+    runtime.context.workspace.page_snapshot = None
+    runtime.context.workspace.visible_customer_ids = []
     return emit(runtime, "customers.filters.set", values)
 
 @tool
@@ -120,6 +186,10 @@ def navigate_workspace(page: Literal["dashboard", "customers", "follow-ups", "in
     """Open Dashboard, Customers or Insights; follow-ups remains a compatible legacy route."""
     runtime.context.consume()
     runtime.context.workspace.page = page
+    runtime.context.workspace.page_snapshot = None
+    runtime.context.workspace.visible_customer_ids = []
+    if page == "follow-ups":
+        runtime.context.workspace.customer_view = "follow-ups"
     return emit(runtime, "ui.navigate", {"page": page})
 
 @tool
@@ -134,6 +204,8 @@ def select_customer(customer_id: str, runtime: ToolRuntime[TurnContext]) -> dict
     emit(runtime, "customers.filters.set", filters)
     runtime.context.workspace.filters = Filters(**filters)
     runtime.context.workspace.customer_id = customer_id
+    runtime.context.workspace.page_snapshot = None
+    runtime.context.workspace.customer_view = "accounts"
     runtime.context.workspace.page = "customers"
     emit(runtime, "customers.select", {"customer_id": customer_id})
     return emit(runtime, "ui.navigate", {"page": "customers"})
@@ -143,6 +215,7 @@ def set_customer_tab(tab: Literal["activity", "portfolio", "next-step"], runtime
     """Switch the customer detail tab; optionally show 24 months (monthly) or 3 months (quarter) of historical bars, followed by a shaded three-month forecast window."""
     runtime.context.consume()
     runtime.context.workspace.customer_tab = tab
+    runtime.context.workspace.page_snapshot = None
     payload = {"control": "customers.tab", "value": tab}
     if activity_view is not None:
         runtime.context.workspace.customer_activity_view = activity_view
@@ -154,11 +227,13 @@ def set_action_limit(limit: Literal[5, 10, 12], runtime: ToolRuntime[TurnContext
     """Set Dashboard shortlist size to 5, 10 or 12 accounts."""
     runtime.context.consume()
     runtime.context.workspace.action_limit = limit
+    runtime.context.workspace.dashboard_offset = 0
+    runtime.context.workspace.page_snapshot = None
     return emit(runtime, "ui.control.set", {"control": "dashboard.action_limit", "value": limit})
 
 @tool
 def create_chart(view: Literal["industry", "activity", "portfolio", "sector_activity", "sector_outlook", "sector_correlation"], runtime: ToolRuntime[TurnContext], customer_id: str = "") -> dict:
-    """Create a supported chart: industry population, customer observed activity/portfolio, sector activity, next-month sector outlook, or movement correlation. Sector correlation is descriptive, not a joint forecast."""
+    """Create a chart INSIDE CHAT ONLY: industry population, customer observed activity/portfolio, sector activity, next-month sector outlook, or movement correlation. Call multiple times for multiple charts. Sector correlation is descriptive, not a joint forecast."""
     runtime.context.consume()
     sid = runtime.context.workspace.snapshot_id
     if sid and view.startswith("sector_"):
@@ -222,7 +297,7 @@ def _opportunity_summary(runtime, cluster_id=None, use_current=True):
     from ..data.opportunities import compose
     selected = workspace.opportunity_cluster if use_current else cluster_id
     result = compose(workspace.snapshot_id, api_v2._metadata(workspace.snapshot_id), workspace.opportunity_filters,
-        selected, display_limit=1, limit=workspace.action_limit, scenario=workspace.commercial_scenario).model_dump()
+        selected, display_limit=1, limit=workspace.action_limit, offset=workspace.dashboard_offset, scenario=workspace.commercial_scenario).model_dump()
     return {k: result[k] for k in ("metadata", "model_version", "selection_revision", "filters", "selected_cluster",
         "matching_count", "selected_count", "unassigned_count", "filter_options", "clusters", "quality", "metrics",
         "forecast_supported", "overdue_count", "unassigned_owner_count", "items", "scenario")}
@@ -247,6 +322,8 @@ def set_opportunity_filters(runtime: ToolRuntime[TurnContext], industry: str | N
     runtime.context.workspace.page_snapshot = None
     runtime.context.workspace.opportunity_filters = merged
     runtime.context.workspace.opportunity_cluster = None
+    runtime.context.workspace.dashboard_offset = 0
+    runtime.context.workspace.visible_customer_ids = []
     emit(runtime, "opportunities.filters.set", values)
     runtime.context.workspace.page = "dashboard"
     return emit(runtime, "ui.navigate", {"page":"dashboard"})

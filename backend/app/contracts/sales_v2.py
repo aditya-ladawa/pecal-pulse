@@ -332,6 +332,17 @@ class CustomerSummary(StrictModel):
 # ---------------------------------------------------------------------------
 
 
+class EmailDraft(StrictModel):
+    subject: str = Field(min_length=1, max_length=200)
+    body: str = Field(min_length=1, max_length=6000)
+    language: Literal["en", "de"] = "en"
+    status: Literal["draft"] = "draft"
+    snapshot_id: str
+    reference_date: str = DateStr
+    reason_ids: list[str] = Field(default_factory=list, max_length=100)
+    review_notes: list[str] = Field(default_factory=list, max_length=10)
+
+
 class Followup(StrictModel):
     id: str
     customer_id: str
@@ -348,6 +359,8 @@ class Followup(StrictModel):
     ]
     status: Literal["open", "done"] = "open"
     source: Literal["mock", "manual"] = "manual"
+    email_draft: EmailDraft | None = None
+    request_key: str | None = Field(default=None, max_length=100)
 
 
 class WorkflowChecks(StrictModel):
@@ -386,6 +399,16 @@ class FollowupCreateV2(StrictModel):
     note: str = Field(min_length=1, max_length=2000)
     outcome: Followup.model_fields["outcome"].annotation
     reason_ids: list[str] = Field(default_factory=list)
+    email_draft: EmailDraft | None = None
+    request_key: str | None = Field(default=None, max_length=100)
+
+    @model_validator(mode="after")
+    def valid_followup(self):
+        from datetime import date
+        date.fromisoformat(self.due_date)
+        if not self.owner.strip() or not self.note.strip():
+            raise ValueError("Owner and next step must not be blank")
+        return self
 
 
 class WorkflowPatchChecks(StrictModel):

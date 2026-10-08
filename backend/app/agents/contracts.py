@@ -16,6 +16,9 @@ class PageSnapshot(StrictModel):
     page: Literal["dashboard", "customers", "follow-ups", "insights"]
     title: str = Field(max_length=150)
     metrics: list[PageMetric] = Field(default_factory=list, max_length=20)
+    sections: list[str] = Field(default_factory=list, max_length=20)
+    visible_rows: list[dict] = Field(default_factory=list, max_length=100)
+    loading: bool = False
 
 class WorkspaceContext(ChatContext):
     opportunity_filters: OpportunityFilters = Field(default_factory=OpportunityFilters)
@@ -24,6 +27,11 @@ class WorkspaceContext(ChatContext):
     opportunity_selection_revision: str | None = None
     commercial_scenario: ScenarioAssumptions | None = None
     customer_view: Literal["accounts", "follow-ups"] = "accounts"
+    customer_offset: int = Field(default=0, ge=0, le=100000)
+    dashboard_offset: int = Field(default=0, ge=0, le=100000)
+    opportunity_drawer_id: str | None = None
+    opportunity_display_limit: Literal[100, 200, 500, 1000] = 200
+    current_date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
 
     page_snapshot: PageSnapshot | None = None
     snapshot_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]+$", max_length=100)

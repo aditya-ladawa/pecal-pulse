@@ -79,9 +79,25 @@ class ActionLimitControl(StrictModel):
     control: Literal["dashboard.action_limit"]
     value: Literal[5, 10, 12]
 
+class CustomerViewControl(StrictModel):
+    control: Literal["customers.view"]
+    value: Literal["accounts", "follow-ups"]
+
+class PaginationControl(StrictModel):
+    control: Literal["customers.offset", "dashboard.offset"]
+    value: int = Field(ge=0, le=100000)
+
+class DisplayLimitControl(StrictModel):
+    control: Literal["dashboard.display_limit"]
+    value: Literal[100, 200, 500, 1000]
+
+class PreviewControl(StrictModel):
+    control: Literal["dashboard.preview"]
+    value: str | None = Field(default=None, max_length=100)
+
 class SetControl(StrictModel):
     type: Literal["ui.control.set"]
-    payload: Annotated[CustomerTabControl | ActionLimitControl, Field(discriminator="control")]
+    payload: Annotated[CustomerTabControl | ActionLimitControl | CustomerViewControl | PaginationControl | DisplayLimitControl | PreviewControl, Field(discriminator="control")]
 
 
 class OpportunityFilterPatch(StrictModel):

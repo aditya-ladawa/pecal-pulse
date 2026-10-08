@@ -156,6 +156,13 @@ def create_followup_v2(request: v2.FollowupCreateV2, customer_name: str) -> dict
         }
     )
     with _connection() as conn:
+        if request.request_key:
+            for row in conn.execute("SELECT payload FROM followups"):
+                existing = json.loads(row["payload"])
+                if existing.get("request_key") == request.request_key:
+                    if existing["customer_id"] != request.customer_id:
+                        raise ValueError("Follow-up request belongs to another account")
+                    return publish("followup.updated", v2.Followup.model_validate(existing).model_dump(), "backend")
         conn.execute(
             "INSERT INTO followups VALUES (?,?)",
             (followup.id, followup.model_dump_json()),
@@ -229,3 +236,15 @@ def update_owner(customer_id: str, owner: str | None) -> v2.AccountWorkflow:
         state['audit'].append({'at': _now(), 'change': {'account_owner': owner}})
         _save_state(conn, customer_id, state)
     return get_workflow(customer_id)
+
+
+def update_owners(customer_ids: list[str], owner: str) -> None:
+    """Commit a validated batch assignment together; never modify source history."""
+    if not owner.strip() or len(owner.strip()) > 100:
+        raise ValueError("Supply a teammate or team name (1–100 characters)")
+    with _connection() as conn:
+        for customer_id in customer_ids:
+            state = _load_state(conn, customer_id)
+            state["account_owner"] = owner.strip()
+            state["audit"].append({"at": _now(), "by": "Sales assistant", "change": {"account_owner": owner.strip()}})
+            _save_state(conn, customer_id, state)

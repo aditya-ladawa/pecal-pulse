@@ -34,10 +34,10 @@ import { integratedSnapshot } from "@/modules/sales/IntegratedWorkspace";
 import { dashboardSnapshot } from "@/modules/sales/page-context";
 import type { Page, WorkspaceContext, ChatMessage } from "@/types/sales";
 const starters = [
-  "Show automotive customers",
-  "Create an industry chart",
-  "Prepare a conversation",
-  "Open follow-ups",
+  "Show customers with calibrations due in the next 30 days",
+  "Open the highest-priority customer's preview",
+  "Draft follow-up emails for the top 3 customers",
+  "Show saved follow-ups",
 ];
 export function SalesAssistantProvider({ children }: { children: ReactNode }) {
   const messages = useSalesStore((s) => s.messages),
@@ -142,6 +142,11 @@ export function SalesAssistantProvider({ children }: { children: ReactNode }) {
           opportunity_selection_revision: s.opportunities?.selection_revision,
           commercial_scenario: s.commercialScenario,
           customer_view: s.customerView,
+          customer_offset: s.customerOffset,
+          dashboard_offset: s.dashboardOffset,
+          opportunity_drawer_id: s.opportunityDrawerId,
+          opportunity_display_limit: s.opportunityDisplayLimit,
+          current_date: new Date().toLocaleDateString("en-CA"),
           page_snapshot: s.v2
             ? integratedSnapshot(s.v2, s.v2Detail, page)
             : page === "dashboard"
@@ -174,7 +179,10 @@ export function SalesAssistantProvider({ children }: { children: ReactNode }) {
           action_limit: s.actionLimit,
           customer_tab: s.customerTab,
           customer_activity_view: s.customerActivityView,
-          artifact_ids: s.artifacts.slice(-50).map((a) => a.id),
+          artifact_ids: s.messages
+            .flatMap((m) => m.artifacts ?? [])
+            .slice(-50)
+            .map((a) => a.id),
         };
         const applied = new Set<string>();
         await streamChat(text, context, threadId, abort.signal, (event) => {
@@ -287,7 +295,7 @@ function AssistantMessage() {
         <div className="action-receipt">
           <CheckCheck size={13} />
           {record.actions.includes("artifact.created")
-            ? "Chart added to workspace"
+            ? "Chart created in chat"
             : "Workspace updated"}
         </div>
       )}
@@ -300,7 +308,7 @@ function AssistantMessage() {
           <ArtifactChart artifact={a} compact />
           <small>
             {a.source === "historical" ? "Historical observed" : "Synthetic"}{" "}
-            {a.unit} · also on Dashboard
+            {a.unit}
           </small>
         </div>
       ))}
