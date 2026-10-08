@@ -161,6 +161,11 @@ export class LiveKitVoice {
     );
   }
 
+  /** Route Pulse's speech to the chosen speaker; "" follows the system default. */
+  setOutput(deviceId: string) {
+    return this.room.switchActiveDevice("audiooutput", deviceId || "default");
+  }
+
   close() {
     this.closed = true;
     this.epoch++;

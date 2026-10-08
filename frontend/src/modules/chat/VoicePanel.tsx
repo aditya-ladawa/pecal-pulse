@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAui, useAuiState } from "@assistant-ui/react";
 import { RoomAudioRenderer, RoomContext } from "@livekit/components-react";
 import { Square, Volume2 } from "lucide-react";
@@ -33,6 +33,12 @@ export function VoicePanel() {
   const [state, setState] = useState<OrbState>("idle");
   const [speaking, setSpeaking] = useState(false);
   const [error, setError] = useState("");
+  const [outputs, setOutputs] = useState<MediaDeviceInfo[]>([]);
+  const [outputId, setOutputId] = useState("");
+  // Speaker routing needs setSinkId (Chromium); Safari/Firefox follow the OS default.
+  const outputSupported =
+    typeof HTMLAudioElement !== "undefined" &&
+    "setSinkId" in HTMLAudioElement.prototype;
   const [voice, setVoice] = useState<LiveKitVoice | null>(null);
   const [adapter, setAdapter] = useState<ReturnType<
     typeof createLiveKitAdapter
@@ -43,6 +49,54 @@ export function VoicePanel() {
   const listening = useRef(false);
   const seen = useRef(response?.id);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Speaker only; the microphone is always the laptop default. A saved
+  // speaker wins while plugged in, otherwise a lone extra output
+  // (e.g. the SoundDrum Bluetooth speaker) is picked automatically.
+  const refreshOutputs = useCallback(async () => {
+    try {
+      const all = await navigator.mediaDevices?.enumerateDevices();
+      if (!all) return "";
+      const outs = all.filter(
+        (d) => d.kind === "audiooutput" && d.deviceId,
+      );
+      setOutputs(outs);
+      const saved = localStorage.getItem("pecal-voice-speaker") || "";
+      let spk = "";
+      if (saved && outs.some((d) => d.deviceId === saved)) spk = saved;
+      else {
+        const extras = outs.filter((d) => d.deviceId !== "default");
+        if (extras.length === 1) spk = extras[0].deviceId;
+      }
+      setOutputId(spk);
+      return spk;
+    } catch {
+      return "";
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshOutputs();
+    const update = () => void refreshOutputs();
+    navigator.mediaDevices?.addEventListener("devicechange", update);
+    return () =>
+      navigator.mediaDevices?.removeEventListener("devicechange", update);
+  }, [refreshOutputs]);
+
+  useEffect(() => {
+    if (!voice || !outputId || !outputSupported) return;
+    void voice
+      .setOutput(outputId)
+      .then((ok) => {
+        if (!ok && mounted.current)
+          setError(
+            "This browser kept the system speaker. Use Chrome or Edge to route Pulse elsewhere.",
+          );
+      })
+      .catch(() => {
+        if (mounted.current) setError("Could not switch speaker output.");
+      });
+  }, [voice, outputId, outputSupported]);
 
   useEffect(() => {
     mounted.current = true;
@@ -143,6 +197,9 @@ export function VoicePanel() {
         epoch !== generation.current
       )
         return;
+      const spk = await refreshOutputs();
+      if (spk && outputSupported)
+        await voice.setOutput(spk).catch(() => {});
       listening.current = true;
       setState("listening");
       adapter?.setTrack({ publication: voice.microphone() });
@@ -283,6 +340,28 @@ export function VoicePanel() {
       >
         <Volume2 size={17} />
       </button>
+      {outputSupported && outputs.length > 1 && (
+        <select
+          className="voice-input-select"
+          aria-label="Speaker output"
+          title="Where Pulse's speech plays"
+          value={outputId}
+          disabled={active}
+          onChange={(e) => {
+            const id = e.target.value;
+            setOutputId(id);
+            if (id) localStorage.setItem("pecal-voice-speaker", id);
+            else localStorage.removeItem("pecal-voice-speaker");
+          }}
+        >
+          <option value="">Speakers · System default</option>
+          {outputs.map((d) => (
+            <option key={d.deviceId} value={d.deviceId}>
+              {d.label || "Speaker"}
+            </option>
+          ))}
+        </select>
+      )}
       {error && (
         <p className="voice-error" role="alert">
           {error}
