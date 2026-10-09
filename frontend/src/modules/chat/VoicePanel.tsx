@@ -286,26 +286,6 @@ export function VoicePanel() {
     listening.current || speaking || running || state === "connecting";
   return (
     <div className="voice-panel">
-      <label className="voice-language">
-        <span>{german ? "Sprache" : "Language"}</span>
-        <select
-          aria-label="Assistant language"
-          value={language}
-          disabled={active}
-          onChange={(event) => {
-            const next = event.target.value === "de" ? "de" : "en";
-            localStorage.setItem("pecal-assistant-language", next);
-            useSalesStore.getState().set({
-              assistantLanguage: next,
-              voiceInputPending: false,
-              voiceResponse: null,
-            });
-          }}
-        >
-          <option value="en">EN · English</option>
-          <option value="de">DE · Deutsch</option>
-        </select>
-      </label>
       {voice && (
         <RoomContext.Provider value={voice.room}>
           <RoomAudioRenderer />
@@ -333,85 +313,107 @@ export function VoicePanel() {
         <ParticlesOrb
           state={!configured || !chatReady ? "disabled" : displayed}
           levelRef={state === "listening" ? adapter?.levelRef : undefined}
-          size={120}
+          size={156}
           colorFrom="#b96532"
           colorTo="#f5b079"
           label={displayed}
         />
         <span className="voice-orb-icon">{active && <Square size={17} />}</span>
       </button>
-      <span className="voice-status" role="status">
-        {state === "listening"
-          ? spaceHeld.current
-            ? german
-              ? "Hört zu · Leertaste zum Senden loslassen"
-              : "Listening · release Space to send"
-            : german
-              ? "Hört zu · zum Senden tippen"
-              : "Listening · tap to send"
-          : speaking
-            ? german
-              ? "Spricht · zum Stoppen tippen"
-              : "Speaking · tap to stop"
-            : running
+      <div className="voice-controls">
+        <label className="voice-language">
+          <span>{german ? "Sprache" : "Language"}</span>
+          <select
+            aria-label="Assistant language"
+            value={language}
+            disabled={active}
+            onChange={(event) => {
+              const next = event.target.value === "de" ? "de" : "en";
+              localStorage.setItem("pecal-assistant-language", next);
+              useSalesStore.getState().set({
+                assistantLanguage: next,
+                voiceInputPending: false,
+                voiceResponse: null,
+              });
+            }}
+          >
+            <option value="en">EN · English</option>
+            <option value="de">DE · Deutsch</option>
+          </select>
+        </label>
+        <span className="voice-status" role="status">
+          {state === "listening"
+            ? spaceHeld.current
               ? german
-                ? "Wird bearbeitet…"
-                : "Working…"
-              : state === "connecting"
+                ? "Hört zu · Leertaste zum Senden loslassen"
+                : "Listening · release Space to send"
+              : german
+                ? "Hört zu · zum Senden tippen"
+                : "Listening · tap to send"
+            : speaking
+              ? german
+                ? "Spricht · zum Stoppen tippen"
+                : "Speaking · tap to stop"
+              : running
                 ? german
-                  ? "Verbindung wird hergestellt…"
-                  : "Connecting…"
-                : german
-                  ? "Leertaste zum Sprechen halten · oder tippen"
-                  : "Hold Space to speak · or tap"}
-      </span>
-      <button
-        className="icon-button"
-        aria-label={savedReply ? "Hear latest reply" : "Test speaker"}
-        title={savedReply ? "Hear latest reply" : "Test speaker"}
-        disabled={
-          !configured ||
-          state === "listening" ||
-          state === "connecting" ||
-          running
-        }
-        onClick={() => {
-          setError("");
-          void voice
-            ?.speak(
-              savedReply ||
-                (german
-                  ? "Pulse ist bereit. Du kannst jetzt sprechen."
-                  : "Pulse is ready. You can speak now."),
-              true,
-            )
-            .catch((e) => setError(e.message || "Could not play speech."));
-        }}
-      >
-        <Volume2 size={17} />
-      </button>
-      {outputSupported && outputs.length > 1 && (
-        <select
-          className="voice-input-select"
-          aria-label="Speaker output"
-          title="Where Pulse's speech plays"
-          value={outputId}
-          disabled={active}
-          onChange={(e) => {
-            const id = e.target.value;
-            setOutputId(id);
-            if (id) localStorage.setItem("pecal-voice-speaker", id);
-            else localStorage.removeItem("pecal-voice-speaker");
+                  ? "Wird bearbeitet…"
+                  : "Working…"
+                : state === "connecting"
+                  ? german
+                    ? "Verbindung wird hergestellt…"
+                    : "Connecting…"
+                  : german
+                    ? "Leertaste zum Sprechen halten · oder tippen"
+                    : "Hold Space to speak · or tap"}
+        </span>
+        <button
+          className="icon-button"
+          aria-label={savedReply ? "Hear latest reply" : "Test speaker"}
+          title={savedReply ? "Hear latest reply" : "Test speaker"}
+          disabled={
+            !configured ||
+            state === "listening" ||
+            state === "connecting" ||
+            running
+          }
+          onClick={() => {
+            setError("");
+            void voice
+              ?.speak(
+                savedReply ||
+                  (german
+                    ? "Pulse ist bereit. Du kannst jetzt sprechen."
+                    : "Pulse is ready. You can speak now."),
+                true,
+              )
+              .catch((e) => setError(e.message || "Could not play speech."));
           }}
         >
-          <option value="">Speakers · System default</option>
-          {outputs.map((d) => (
-            <option key={d.deviceId} value={d.deviceId}>
-              {d.label || "Speaker"}
-            </option>
-          ))}
-        </select>
-      )}
+          <Volume2 size={17} />
+        </button>
+        {outputSupported && outputs.length > 1 && (
+          <select
+            className="voice-input-select"
+            aria-label="Speaker output"
+            title="Where Pulse's speech plays"
+            value={outputId}
+            disabled={active}
+            onChange={(e) => {
+              const id = e.target.value;
+              setOutputId(id);
+              if (id) localStorage.setItem("pecal-voice-speaker", id);
+              else localStorage.removeItem("pecal-voice-speaker");
+            }}
+          >
+            <option value="">Speakers · System default</option>
+            {outputs.map((d) => (
+              <option key={d.deviceId} value={d.deviceId}>
+                {d.label || "Speaker"}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
       {error && (
         <p className="voice-error" role="alert">
           {error}
