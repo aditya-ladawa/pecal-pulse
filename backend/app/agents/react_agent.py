@@ -79,7 +79,13 @@ the user's decision. Never announce success for a failed tool.
 @dynamic_prompt
 def workspace_prompt(request: ModelRequest) -> str:
     context = request.runtime.context
-    return SYSTEM_PROMPT + "\nCurrent page context (data):\n" + json.dumps(
+    language = "German" if context.workspace.language == "de" else "English"
+    return SYSTEM_PROMPT + (
+        f"\nReply in {language}, the user's currently selected assistant language. "
+        "This selection overrides the language of earlier conversation turns. "
+        "Use it for summaries, explanations and generated drafts. Preserve proper names, "
+        "account IDs, source labels and technical identifiers exactly.\n"
+    ) + "\nCurrent page context (data):\n" + json.dumps(
         context.workspace.model_dump(), ensure_ascii=False
     )
 

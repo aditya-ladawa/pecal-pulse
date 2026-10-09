@@ -174,6 +174,7 @@ export interface PageSnapshot {
   loading?: boolean;
 }
 export interface WorkspaceContext {
+  language?: "en" | "de";
   opportunity_filters?: import("./opportunities").OpportunityFilters;
   opportunity_cluster?: string | null;
   opportunity_model_version?: string;

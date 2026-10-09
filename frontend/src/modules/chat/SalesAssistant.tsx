@@ -7,6 +7,7 @@ import {
   ThreadPrimitive,
   MessagePrimitive,
   ActionBarPrimitive,
+  ComposerPrimitive,
   AuiIf,
   useAuiState,
   type ThreadMessageLike,
@@ -17,16 +18,17 @@ import {
   Sparkles,
   X,
   CheckCheck,
-  ChartColumn,
   Maximize2,
   Minimize2,
   Plus,
   ArrowLeftRight,
+  ArrowUp,
+  Square,
 } from "lucide-react";
 import { filterCustomers, useSalesStore } from "@/modules/sales/store";
 import { streamChat, getChatStatus, getChatHistory } from "@/modules/sales/api";
 import { dispatchEvent } from "@/core/events/router";
-import { ArtifactChart } from "@/modules/artifacts/Chart";
+import { ChatArtifact } from "./ChatArtifact";
 import { ChatParts } from "./ChatParts";
 import { VoicePanel } from "./VoicePanel";
 import { integratedSnapshot } from "@/modules/sales/IntegratedWorkspace";
@@ -42,7 +44,10 @@ export function SalesAssistantProvider({ children }: { children: ReactNode }) {
     let alive = true;
     const saved = localStorage.getItem("pecal-chat-thread");
     const threadId = saved && /^[0-9a-f-]{36}$/i.test(saved) ? saved : null;
-    useSalesStore.getState().set({ threadId });
+    const language = localStorage.getItem("pecal-assistant-language");
+    useSalesStore
+      .getState()
+      .set({ threadId, assistantLanguage: language === "de" ? "de" : "en" });
     Promise.all([
       getChatStatus(),
       threadId ? getChatHistory(threadId) : Promise.resolve(null),
@@ -131,6 +136,7 @@ export function SalesAssistantProvider({ children }: { children: ReactNode }) {
                 : "dashboard";
         const visible = filterCustomers(s.data, s.filters);
         const context: WorkspaceContext = {
+          language: s.assistantLanguage,
           page,
           opportunity_filters: s.opportunityFilters,
           opportunity_cluster: s.opportunityCluster,
@@ -318,17 +324,7 @@ function AssistantMessage() {
         </div>
       )}
       {record?.artifacts?.map((a) => (
-        <div className="chat-artifact" key={a.id}>
-          <div>
-            <ChartColumn size={14} />
-            <strong>{a.title}</strong>
-          </div>
-          <ArtifactChart artifact={a} compact />
-          <small>
-            {a.source === "historical" ? "Historical observed" : "Synthetic"}{" "}
-            {a.unit}
-          </small>
-        </div>
+        <ChatArtifact artifact={a} key={a.id} />
       ))}
       <ActionBarPrimitive.Root className="message-actions">
         <ActionBarPrimitive.Copy
@@ -341,11 +337,60 @@ function AssistantMessage() {
     </MessagePrimitive.Root>
   );
 }
+function AssistantComposer() {
+  const language = useSalesStore((s) => s.assistantLanguage);
+  const busy = useSalesStore((s) => s.voiceBusy);
+  const running = useAuiState((s) => s.thread.isRunning);
+  const german = language === "de";
+  return (
+    <div className="composer-wrap">
+      <ComposerPrimitive.Root className="composer">
+        <ComposerPrimitive.Input
+          aria-label={
+            german ? "Nachricht oder Transkript" : "Message or transcript"
+          }
+          placeholder={german ? "Nachricht eingeben…" : "Type a message…"}
+          lang={language}
+          maxLength={2000}
+          disabled={busy}
+          minRows={2}
+          maxRows={5}
+          autoFocus={false}
+          cancelOnEscape={false}
+        />
+        <div className="composer-bottom">
+          <span role="status">
+            {german
+              ? "Enter zum Senden · Shift+Enter für neue Zeile"
+              : "Enter to send · Shift+Enter for a new line"}
+          </span>
+          {running ? (
+            <ComposerPrimitive.Cancel
+              className="send-button"
+              aria-label={german ? "Antwort stoppen" : "Stop reply"}
+            >
+              <Square size={15} />
+            </ComposerPrimitive.Cancel>
+          ) : (
+            <ComposerPrimitive.Send
+              className="send-button"
+              disabled={busy}
+              aria-label={german ? "Nachricht senden" : "Send message"}
+            >
+              <ArrowUp size={17} />
+            </ComposerPrimitive.Send>
+          )}
+        </div>
+      </ComposerPrimitive.Root>
+    </div>
+  );
+}
 export function SalesAssistant() {
   const open = useSalesStore((s) => s.assistantOpen),
     expanded = useSalesStore((s) => s.assistantExpanded),
     side = useSalesStore((s) => s.assistantSide),
     voiceResetRevision = useSalesStore((s) => s.voiceResetRevision),
+    language = useSalesStore((s) => s.assistantLanguage),
     set = useSalesStore((s) => s.set),
     chatLoading = useSalesStore((s) => s.chatLoading),
     running = useAuiState((s) => s.thread.isRunning);
@@ -410,7 +455,7 @@ export function SalesAssistant() {
         </div>
       </div>
       <ThreadPrimitive.Root className="chat-thread">
-        <VoicePanel key={voiceResetRevision} />
+        <VoicePanel key={`${voiceResetRevision}-${language}`} />
         <ThreadPrimitive.Viewport className="chat-viewport">
           <ThreadPrimitive.Messages>
             {({ message }) =>
@@ -422,6 +467,7 @@ export function SalesAssistant() {
           <ArrowDown size={13} />
           Latest
         </ThreadPrimitive.ScrollToBottom>
+        <AssistantComposer />
       </ThreadPrimitive.Root>
     </aside>
   );

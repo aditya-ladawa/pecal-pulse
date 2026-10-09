@@ -30,6 +30,7 @@ export class LiveKitVoice {
       onSpeaking: (speaking: boolean) => void;
       onError: (message: string) => void;
     },
+    private language: "en" | "de" = "de",
   ) {
     this.room.on(RoomEvent.ParticipantAttributesChanged, (attributes) => {
       if ("lk.agent.state" in attributes)
@@ -66,7 +67,10 @@ export class LiveKitVoice {
         const response = await fetch("/api/sales/voice/connect", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ session_id: this.sessionId }),
+          body: JSON.stringify({
+            session_id: this.sessionId,
+            language: this.language,
+          }),
         });
         const body = await response.json();
         if (!response.ok)

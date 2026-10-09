@@ -234,6 +234,7 @@ export function PredictiveArcSignal(props: PredictiveArcSignalProps) {
     let last = performance.now();
     let clock = 0;
     const PTR_RATE = 6.0;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
     const render = (now: number) => {
       const dt = Math.min(0.05, (now - last) / 1000);
@@ -281,8 +282,19 @@ export function PredictiveArcSignal(props: PredictiveArcSignalProps) {
       gl.uniform3f(u("uHigh"), chh[0], chh[1], chh[2]);
 
       gl.drawArrays(gl.TRIANGLES, 0, 3);
+      if (!reducedMotion.matches) raf = requestAnimationFrame(render);
+    };
+
+    const restart = () => {
+      cancelAnimationFrame(raf);
+      last = performance.now();
       raf = requestAnimationFrame(render);
     };
+    const resizeObserver = new ResizeObserver(() => {
+      if (reducedMotion.matches) restart();
+    });
+    resizeObserver.observe(canvas);
+    reducedMotion.addEventListener("change", restart);
 
     const track = (e: PointerEvent) => {
       const r = canvas.getBoundingClientRect();
@@ -302,6 +314,8 @@ export function PredictiveArcSignal(props: PredictiveArcSignalProps) {
 
     return () => {
       cancelAnimationFrame(raf);
+      resizeObserver.disconnect();
+      reducedMotion.removeEventListener("change", restart);
       canvas.removeEventListener("pointermove", track);
       canvas.removeEventListener("pointerenter", track);
       canvas.removeEventListener("pointerleave", onLeave);

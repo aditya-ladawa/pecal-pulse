@@ -18,6 +18,8 @@ import {
   type CommercialScenario,
 } from "@/types/opportunities";
 interface SalesState {
+  assistantLanguage: "en" | "de";
+  voiceBusy: boolean;
   assistantSide: "left" | "right";
   voiceInputPending: boolean;
   voiceResponse: {
@@ -76,6 +78,8 @@ export const defaultFilters: CustomerFilters = {
   query: "",
 };
 export const useSalesStore = create<SalesState>((set) => ({
+  assistantLanguage: "en",
+  voiceBusy: false,
   assistantSide: "right",
   voiceInputPending: false,
   voiceResponse: null,
