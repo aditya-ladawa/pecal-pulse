@@ -40,13 +40,40 @@ Historical workspace views with account identifiers and customer lists excluded.
 
 ![Sector-level calibration outlook on the Insights page](media/insights.jpg)
 
-**Pulse — saved conversation walkthrough.** This silent GIF shows two captured views of an existing German voice conversation in the real frontend. It is a history walkthrough, not a live tool-execution or speech recording.
+**Pulse — one request, three charts.** This actual agent reply used three chart tools to compare historical sector activity, the next-month outlook and sector movement correlation. The request was submitted through the local API and its saved results opened in the frontend.
 
-![Pulse saved-conversation walkthrough](media/agent-history.gif)
+![Expanded Pulse showing three successful chart tool calls](media/pulse-chart-tools.jpg)
 
-[View the readable assistant screenshot](media/agent.jpg).
+**Charts stay in the conversation.** Expanded Pulse shows multiple inline charts alongside the workspace; they do not get appended to the dashboard.
 
-Live tool-action recordings and enlarged agent-created charts are still pending. GIFs cannot carry speech audio; spoken demonstrations need a video.
+![Multiple agent-created charts inside expanded chat](media/pulse-inline-charts.jpg)
+
+**Enlarge any chart to inspect it.** These are the same agent-created artifacts opened with their Maximize controls.
+
+![Maximized agent-created sector activity chart](media/pulse-sector-activity.jpg)
+
+![Maximized agent-created September sector outlook](media/pulse-sector-outlook.jpg)
+
+![Maximized agent-created sector movement correlation](media/pulse-sector-correlation.jpg)
+
+The outlook is an estimate, even though the artifact footer uses the generic historical-calibrations label. Correlation describes co-movement and does not establish causation. Screenshots show saved results, not a recording of spoken audio.
+
+**English and German conversations.** Pulse keeps replies, tool results and charts available in conversation history.
+
+![Pulse voice controls and saved German response](media/agent.jpg)
+
+## Pulse's tools
+
+| Ask Pulse to… | What it can do |
+|---|---|
+| Find the right accounts | Read current page context and evidence; list customers; filter industry, behavioral segment, action type and retention-review tier. |
+| Operate the workspace | Navigate Dashboard, Customers and Insights; select opportunity groups and due-window filters; open/close customer previews; switch customer tabs, list pages and plotted sample size. |
+| Explain and visualize | Explain timing, inactivity and peer-category evidence; create sector activity, outlook, correlation, industry population, customer activity and equipment-portfolio charts in chat. Enlarge and restore charts through visible controls. |
+| Organize next steps | Assign selected accounts to a team, save follow-ups, update task status and record manually supplied contact/quotation checks. |
+| Prepare outreach | Draft customer-specific English/German follow-up emails and save them for review and copying. No recipient is invented and no email is sent. |
+| Correct a suggestion | Snooze or mark the exact calibration batch as not applicable while preserving other account opportunities. |
+
+Voice uses push-to-talk with brief spoken acknowledgement and summary. Detailed replies, provider-returned reasoning and tool calls remain in chat. Tools use typed application commands and local workflow storage; they do not execute arbitrary browser code or write to the source database. The current page's filters, selection and visible results accompany each request.
 
 ## Data science: what, how and why
 
