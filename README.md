@@ -20,6 +20,24 @@ Choose an opportunity group → inspect an account's history and upcoming calibr
 
 Try: **“Show customers with calibrations due in the next 30 days and open the first account.”** Or ask Pulse to compare sector activity and draw charts in the conversation. Drafts remain available for review; the assistant does not send emails or update the source database.
 
+## Screenshots
+
+Historical workspace views with account identifiers and customer lists excluded. A public clone starts with synthetic demo data.
+
+**Dashboard — choose where to focus.** Opportunity groups combine urgency and quantity-based potential, independently of customer segments.
+
+![Dashboard opportunity groups and filters](media/dashboard.jpg)
+
+**Customers — understand past activity and the next three months.** Bars show completed calibrations; shading marks the forecast window and estimated total.
+
+![Customer calibration history and three-month forecast](media/customers.jpg)
+
+**Insights — compare industries.** Sector-level views support planning and show where calibration activity is concentrated.
+
+![Sector-level calibration outlook on the Insights page](media/insights.jpg)
+
+Short recordings of agent interactions are still to come. GIFs will show UI actions; an accompanying video can demonstrate spoken replies.
+
 ## Data science: what, how and why
 
 | Decision | Method | Why we use it |
@@ -76,10 +94,6 @@ Stop the frontend before running `pnpm --dir frontend build` to avoid mixing a r
 ## Project history
 
 The development commits and teammate branches are retained. Public history was sanitized to exclude proprietary database material and internal research; this changes commit hashes while preserving the development sequence and branch structure.
-
-## Demo
-
-Three page-specific demonstrations are being prepared: **Dashboard** (opportunity selection and filtering), **Customers** (history, preparation and follow-ups), and **Insights** (sector comparisons and agent-created charts). Screenshots will show the key decisions; short GIFs will show interaction. Voice demonstrations require an accompanying video because GIFs have no audio. Only reviewed, redacted assets will be published.
 
 ## Development credits
 
