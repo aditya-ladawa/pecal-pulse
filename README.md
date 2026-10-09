@@ -28,6 +28,10 @@ Historical workspace views with account identifiers and customer lists excluded.
 
 ![Dashboard opportunity groups and filters](media/dashboard.jpg)
 
+**Complete opportunity map:** all four regions and both axes. Horizontal position shows relative action urgency; vertical position shows quantity-based opportunity size. These are opportunity groups, separate from behavioral customer segments.
+
+![Complete four-region opportunity map](media/opportunity-map.jpg)
+
 **Customers — understand past activity and the next three months.** Bars show completed calibrations; shading marks the forecast window and estimated total.
 
 ![Customer calibration history and three-month forecast](media/customers.jpg)
@@ -36,7 +40,13 @@ Historical workspace views with account identifiers and customer lists excluded.
 
 ![Sector-level calibration outlook on the Insights page](media/insights.jpg)
 
-Short recordings of agent interactions are still to come. GIFs will show UI actions; an accompanying video can demonstrate spoken replies.
+**Pulse — saved conversation walkthrough.** This silent GIF shows two captured views of an existing German voice conversation in the real frontend. It is a history walkthrough, not a live tool-execution or speech recording.
+
+![Pulse saved-conversation walkthrough](media/agent-history.gif)
+
+[View the readable assistant screenshot](media/agent.jpg).
+
+Live tool-action recordings and enlarged agent-created charts are still pending. GIFs cannot carry speech audio; spoken demonstrations need a video.
 
 ## Data science: what, how and why
 
