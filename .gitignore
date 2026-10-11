@@ -62,3 +62,14 @@ challenge2_customers.html
 *.tar.gz
 *.csv
 *.parquet
+
+# Publication exclusions: all datasets, examples and captured workspace views stay local.
+data/
+media/
+analysis/**/fixtures/
+analysis/**/example*.json
+analysis/challenge2_ml/synthetic_fixture.py
+analysis/challenge2_insights/run_eda.py
+backend/app/capabilities/sales/mock_assistant.py
+backend/tests/
+!backend/tests/test_voice_adapter.py
